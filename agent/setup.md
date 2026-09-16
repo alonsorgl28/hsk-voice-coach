@@ -18,12 +18,19 @@ con más fiabilidad en inglés, aunque el agente hable en mandarín y español.
 
 | Campo | Valor |
 |---|---|
-| Agent language | Chinese (Mandarin) |
-| Additional languages | Spanish |
+| Agent language | **Spanish** para HSK 1 (ver nota abajo) |
+| Additional languages | Chinese (Mandarin) |
 | Voice | Una voz femenina con soporte de mandarín. `Xiaoyin` o similar funciona bien. |
 | First message | *(vacío)* — el prompt ya define el saludo |
 
 Baja la velocidad de la voz si suena rápida para nivel principiante.
+
+> **Qué idioma poner como principal.** El idioma del agente decide con qué modelo se
+> transcribe **tu** voz. En HSK 1 vas a hablar sobre todo en español — preguntas,
+> dudas, "volvamos al comienzo" — así que con el reconocimiento en mandarín esas frases
+> se transcriben mal y la profesora responde a algo que no dijiste. Pon **español** como
+> principal y mandarín como adicional; cuando ya formes frases largas en chino,
+> inviértelo.
 
 ## 4. Variables dinámicas
 

@@ -11,15 +11,20 @@ const BLOBS = [
   {color:[146,  62, 236], ax:.26, ay:.31, sx:5.60, sy:1.10, rate:.16, size:.82, weight:.62},
 ];
 
-// fade  — how much white is washed over the previous frame. Lower means longer trails.
-// travel— how far the whole mass wanders, which is what actually smears.
-// amp   — how hard the outline deforms. speed — the clock.
-const TARGETS: Record<OrbState, {vivid:number; scale:number; speed:number; fade:number; amp:number; travel:number; grain:number}> = {
-  idle:      {vivid:.82, scale:.86, speed:.70, fade:.085, amp:.16, travel:.26, grain:.14},
-  listening: {vivid:.96, scale:.92, speed:1.05, fade:.070, amp:.20, travel:.34, grain:.13},
-  thinking:  {vivid:.90, scale:.80, speed:2.3, fade:.040, amp:.27, travel:.52, grain:.16},
-  speaking:  {vivid:1.0, scale:.94, speed:1.55, fade:.055, amp:.24, travel:.44, grain:.11},
+// The body only moves when someone is actually talking. `rest` is the motion it keeps
+// with no sound at all — zero everywhere except while she is thinking, where a little
+// drift is the only signal that anything is happening. `voice` is how much the live
+// audio level adds on top. With both at zero the mass sits still, dead centre.
+// fade: opacity of the wash over the previous frame — lower means a longer trail.
+// travel: how far the mass can wander. amp: how hard the outline deforms.
+const TARGETS: Record<OrbState, {vivid:number; scale:number; speed:number; fade:number; amp:number; travel:number; grain:number; rest:number; voice:number}> = {
+  idle:      {vivid:.86, scale:.98, speed:.70, fade:.090, amp:.13, travel:.20, grain:.14, rest:0,   voice:0},
+  listening: {vivid:.97, scale:1.0, speed:1.05, fade:.070, amp:.19, travel:.30, grain:.13, rest:0,   voice:1.15},
+  thinking:  {vivid:.92, scale:.94, speed:2.0, fade:.045, amp:.25, travel:.42, grain:.16, rest:.5,  voice:.3},
+  speaking:  {vivid:1.0, scale:1.02, speed:1.5, fade:.058, amp:.22, travel:.38, grain:.11, rest:0,   voice:1.15},
 };
+// The shape the outline relaxes into when nothing is moving: organic, but never a pulse.
+const REST_AMP = .11;
 
 const lerp = (a:number, b:number, t:number) => a + (b - a) * t;
 
@@ -89,7 +94,10 @@ export default function Gradient({state, getLevel, size = 280}:{state:OrbState; 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d', {alpha:false});
+    // Transparent, not opaque white: washing towards white is asymptotic, so the trail
+    // never quite got there and left a permanent grey square the size of the canvas.
+    // Erasing towards transparent lets the page's own white finish the job.
+    const ctx = canvas.getContext('2d', {alpha:true});
     if (!ctx) return;
 
     const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -97,8 +105,8 @@ export default function Gradient({state, getLevel, size = 280}:{state:OrbState; 
     const box = Math.round(size * dpr);
     canvas.width = canvas.height = box;
     const C = box / 2;
-    // The body is small relative to the canvas: the rest is room for the trail to live in.
-    const R = C * .42;
+    // Bigger body now that it travels less: the trail needs far less room to live in.
+    const R = C * .62;
 
     // The body is drawn off-screen so it can be composited through a blur: a clipped
     // path alone has a razor edge, and the reference has none anywhere.
@@ -112,11 +120,8 @@ export default function Gradient({state, getLevel, size = 280}:{state:OrbState; 
     const patterns = tiles.map(t => ctx.createPattern(t, 'repeat')).filter(Boolean) as CanvasPattern[];
 
     let vivid = TARGETS.idle.vivid, scale = TARGETS.idle.scale, wash = TARGETS.idle.fade;
-    let amp = TARGETS.idle.amp, travel = TARGETS.idle.travel, grain = TARGETS.idle.grain;
+    let amp = REST_AMP, travel = TARGETS.idle.travel, grain = TARGETS.idle.grain, motion = 0;
     let level = 0, drift = 0, frame = 0, last = performance.now(), grainClock = 0, tile = 0;
-
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, box, box);
 
     function paint(now:number) {
       const dt = Math.min((now - last) / 1000, .05);
@@ -131,22 +136,31 @@ export default function Gradient({state, getLevel, size = 280}:{state:OrbState; 
       level = raw > level ? lerp(level, raw, 1 - Math.exp(-dt * 18)) : lerp(level, raw, 1 - Math.exp(-dt * 4.5));
 
       const ease = 1 - Math.exp(-dt * 3.2);
+      // How alive the body is right now: silence means still, voice means moving.
+      // Curved, not linear: speech spends most of its time at low volume, and a linear
+      // map would leave the body barely twitching through a normal sentence.
+      const heard = level > 0 ? Math.pow(level, .62) : 0;
+      const wanted = still ? 0 : Math.min(target.rest + target.voice * heard, 1.4);
+      motion = lerp(motion, wanted, 1 - Math.exp(-dt * 4));
       vivid  = lerp(vivid,  target.vivid,  ease);
       scale  = lerp(scale,  target.scale,  ease);
       wash   = lerp(wash,   target.fade,   ease);
-      amp    = lerp(amp,    target.amp,    ease);
+      amp    = lerp(amp,    REST_AMP + (target.amp - REST_AMP) * Math.min(motion, 1), ease);
       travel = lerp(travel, target.travel, ease);
       grain  = lerp(grain,  target.grain,  ease);
-      if (!still) drift += dt * target.speed * (1 + level * .9);
+      drift += dt * target.speed * motion;
 
-      // The trail: instead of clearing, wash the previous frame towards white. What
-      // survives underneath is the smear. This is the whole motion-blur trick.
-      ctx!.globalCompositeOperation = 'source-over';
-      ctx!.fillStyle = `rgba(255,255,255,${still ? 1 : wash})`;
+      // The trail: instead of clearing, erase the previous frame a little further
+      // towards transparent. What survives underneath is the smear.
+      ctx!.globalCompositeOperation = 'destination-out';
+      ctx!.fillStyle = `rgba(0,0,0,${still ? 1 : wash})`;
       ctx!.fillRect(0, 0, box, box);
+      ctx!.globalCompositeOperation = 'source-over';
 
-      const bloom = scale + (still ? 0 : Math.sin(drift * .9) * .012) + level * .10;
-      const reach = travel * (1 + level * 1.1);
+      // No breathing: a mass that pulses on its own reads as an idle animation, and the
+      // brief is that it only moves when somebody is talking.
+      const bloom = scale + heard * .09;
+      const reach = travel * motion;
       // Where the body sits this frame. Two decorrelated walks so it wanders, never orbits.
       const cx = C + C * reach * noise2(drift * 1.45, 11.5);
       const cy = C + C * reach * noise2(7.3, drift * 1.32);
@@ -186,8 +200,12 @@ export default function Gradient({state, getLevel, size = 280}:{state:OrbState; 
       // Grain goes on the body only. Painted over the whole box it lands on the trail
       // too, and since the trail is re-grained every frame it silts up into red speckle.
       if (patterns.length) {
-        grainClock += dt;
-        if (grainClock > .07) { grainClock = 0; tile = (tile + 1) % patterns.length; }
+        // Grain boils only while the body moves. Left running over a still mass it is a
+        // shimmer nobody asked for, and the brief is that silence looks like silence.
+        if (motion > .02) {
+          grainClock += dt;
+          if (grainClock > .07) { grainClock = 0; tile = (tile + 1) % patterns.length; }
+        }
         ctx!.save();
         traceBlob(ctx!, cx, cy, R * bloom * .97, drift * 1.15, amp * (1 + level * .25), 1.7);
         ctx!.clip();

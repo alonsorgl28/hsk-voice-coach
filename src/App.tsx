@@ -172,6 +172,8 @@ export default function App() {
   const lastAgentLine=demo ? DEMO_LINE : (active?.messages.filter(m=>m.role==='agent').at(-1)?.text ?? '');
   // The subtitle holds until the next line replaces it. Nothing fades out from under you.
   const subtitle:Token[]=glossChinese(lastAgentLine,curriculum.words);
+  const subtitleWeight=subtitle.reduce((n,tk)=>n+(tk.hanzi?tk.hanzi.length*2:Math.ceil((tk.text?.length ?? 0)/2)),0);
+  const subtitleSize=subtitleWeight>90?'xs':subtitleWeight>56?'s':subtitleWeight>30?'m':'l';
   const orbState:OrbState = !connected ? 'idle'
     : conversation.isSpeaking ? 'speaking'
     : (closing || active?.messages.at(-1)?.role==='user') ? 'thinking'
@@ -183,9 +185,9 @@ export default function App() {
   // ── The conversation. Nothing on screen but the orb and what she just said. ──
   if (live || (demo && !active)) return <div className="room">
     <button className="room-exit" aria-label="Terminar la sesión" onClick={()=>{if(demo&&!active){setDemo(false);return}void stop()}}><X size={20}/></button>
-    <div className="room-orb"><Gradient state={demo?'speaking':orbState} getLevel={getLevel} size={compact?(phrase?168:220):(phrase?248:320)}/></div>
+    <div className="room-orb"><Gradient state={demo?'speaking':orbState} getLevel={getLevel} size={compact?(phrase?200:258):(phrase?300:380)}/></div>
     {caption && <p className="room-caption">{caption}</p>}
-    {subtitle.length>0 && <Subtitle tokens={subtitle} density={density}/>}
+    {subtitle.length>0 && <Subtitle tokens={subtitle} density={density} size={subtitleSize}/>}
     {density==='full' && subtitle.some(t=>t.es) && <p className="room-gloss">Significado palabra por palabra, no una traducción literal.</p>}
     {error && <p role="alert" className="room-error">{error}</p>}
     {phrase && <PhraseCard phrase={phrase} onClose={()=>setPhrase(null)}/>}
@@ -237,8 +239,8 @@ export default function App() {
   </div>;
 }
 
-function Subtitle({tokens,density}:{tokens:Token[]; density:Density}) {
-  return <p className={'subtitle subtitle-'+density}>
+function Subtitle({tokens,density,size}:{tokens:Token[]; density:Density; size:string}) {
+  return <p className={`subtitle subtitle-${density} subtitle-${size}`}>
     {tokens.map((t,i)=> t.text !== undefined
       ? <span className="subtitle-es" key={i}>{t.text}</span>
       : <span className={'subtitle-word'+(t.es?'':' subtitle-plain')} key={i}>
