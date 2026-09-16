@@ -11,6 +11,12 @@
 - [x] Interacción tipo Mural: el chat se sustituye por un escenario con un gradiente
       animado que reacciona al audio real (cuatro estados) y subtítulos con pinyin y
       significado palabra por palabra bajo la voz de la profesora.
+- [x] Rediseño en blanco: durante la conversación no hay nada en pantalla salvo el
+      gradiente y lo que ella acaba de decir. Reloj, navegación y vocabulario se fueron
+      a antes y después.
+- [x] Gradiente con grano y ruido de valor, borde disuelto y paleta luminosa sobre blanco.
+- [x] `suggest_phrase`: al preguntar "¿cómo digo esto?" la frase queda fija en pantalla.
+      Acepta vocabulario fuera de nivel y lo marca sin contarlo como practicado.
 - [x] Versiones de dependencias fijadas.
 - [x] README, `agent/setup.md`, capturas de escritorio y móvil.
 - [x] Enlace `?demo=1` para enseñar la app sin gastar créditos.
@@ -18,6 +24,9 @@
 ## Pendiente
 
 - [ ] Configurar el agente real en el dashboard (requiere inicio de sesión — paso manual).
+      Ahora son DOS client tools: `record_learning` y `suggest_phrase`.
+- [ ] Verificar el gradiente contra la referencia de grainient.supply (el original es un
+      MP4 tras un muro de pago; falta una captura para comparar).
 - [ ] Cinco conversaciones de prueba con evidencia en `docs/pruebas.md`.
 - [ ] Despliegue en Vercel y allowlist del dominio en el agente.
 - [ ] Párrafo de postulación y bullet de CV, escritos sobre resultados reales.
@@ -36,4 +45,6 @@ transcripción antes de guardarse.
 No confundir los tests del código con conversaciones reales: hasta que no existan las
 cinco pruebas, el proyecto no está validado. Los estados del gradiente durante una sesión
 real (escuchando / pensando / hablando) se verificaron en un banco de pruebas aislado, no
-todavía con una conversación de verdad.
+todavía con una conversación de verdad. La tarjeta de `suggest_phrase` se ha visto con
+datos de ejemplo en `?demo=1`, nunca disparada por la profesora: eso requiere declarar la
+herramienta en el dashboard.

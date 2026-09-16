@@ -59,6 +59,25 @@ Un único parámetro:
 
 El contrato de los tres objetos está al final de `system-prompt.md`.
 
+## 5b. Herramienta de cliente `suggest_phrase`
+
+La que resuelve *"oye, ¿cómo digo esto?"*. Se declara igual que la anterior, en
+**Agent → Tools → Add tool → Client tool**:
+
+| Campo | Valor |
+|---|---|
+| Name | `suggest_phrase` |
+| Description | `Give the student a phrase they asked how to say, pinned on screen until dismissed. Argument payload is serialized JSON with hanzi, pinyin, es and an optional context. Returns OK or an ERROR to repair and retry.` |
+| Wait for response | **Sí** |
+
+| Parámetro | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `payload` | String | Sí | `Serialized JSON: {"hanzi":"…","pinyin":"…","es":"…","context":"…"}. No markdown fences.` |
+
+A diferencia de `record_learning`, esta herramienta **sí acepta vocabulario fuera del
+nivel** — es justo lo que el estudiante está pidiendo. La app marca esas frases como
+fuera de nivel y no las cuenta como vocabulario practicado.
+
 ## 6. Seguridad y dominios
 
 En **Security**:
@@ -85,7 +104,9 @@ Señales de que está bien configurado:
 
 - la profesora saluda con 你好 y hace **una** pregunta;
 - al corregirte aparece una tarjeta con 汉字, pinyin y explicación;
-- al pulsar "Resumir y terminar" el cuaderno guarda vocabulario, errores y tarea.
+- al pulsar "Terminar" el cuaderno guarda vocabulario, errores y tarea;
+- al escribirle "¿cómo digo que tengo hambre?" aparece abajo una tarjeta fija con la
+  frase, y no desaparece sola.
 
 Si las tarjetas no aparecen, la herramienta de cliente no está bien declarada: revisa que
 el parámetro se llame exactamente `payload` y sea de tipo String.

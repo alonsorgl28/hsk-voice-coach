@@ -1,23 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useConversation } from '@elevenlabs/react';
-import { ArrowRight, AudioLines, BookOpen, Check, ChevronDown, Download, Eye, EyeOff, Headphones, Mic, MicOff, Settings, Square, X } from 'lucide-react';
+import { ArrowRight, ArrowLeft, BookOpen, Check, Download, Mic, MicOff, Settings, X } from 'lucide-react';
 import curriculum from './curriculum.json';
-import { makePlan, readHistory, upsertSession, validateLearningEvent } from './learning.mjs';
-import { fullyGlossed, glossChinese } from './subtitles.mjs';
+import { makePlan, readHistory, upsertSession, validateLearningEvent, validatePhrase } from './learning.mjs';
+import { glossChinese } from './subtitles.mjs';
 import Gradient, { type OrbState } from './Gradient';
 
 type Message = {role:'user'|'agent'; text:string; eventId?:number};
 type Word = typeof curriculum.words[number];
 type Feedback = {kind:'lesson'|'correction'; hanzi:string; pinyin:string; explanation:string; evidence?:string};
 type Summary = {kind:'summary'; practiced:string[]; errors:Feedback[]; recommendation:string; homework:string; completed:boolean};
+type Phrase = {hanzi:string; pinyin:string; es:string; context:string; beyond:boolean};
 type Token = {hanzi?:string; pinyin?:string; es?:string; text?:string};
-type Session = {id:string; conversationId?:string; date:string; level:number; topic:string; mode:'voice'|'text'; duration:number; messages:Message[]; feedback:Feedback[]; practiced:string[]; summary?:Summary; ended:boolean};
+type Session = {id:string; conversationId?:string; date:string; level:number; topic:string; mode:'voice'|'text'; duration:number; messages:Message[]; feedback:Feedback[]; practiced:string[]; phrases?:Phrase[]; summary?:Summary; ended:boolean};
+type Density = 'hanzi'|'pinyin'|'full';
+
 const HISTORY_KEY = 'hsk-coach.sessions.v1';
 const AGENT_KEY = 'hsk-coach.agent.v1';
-const MEANING_KEY = 'hsk-coach.meaning.v1';
+const DENSITY_KEY = 'hsk-coach.density.v1';
 const DEMO_LINE = '你叫什么名字？';
+// The example view also shows a pinned phrase, because that is the feature worth showing.
+const DEMO_PHRASE:Phrase = {hanzi:'我不知道怎么说。', pinyin:'Wǒ bù zhīdào zěnme shuō.', es:'No sé cómo se dice.', context:'Úsala cuando te quedes en blanco. Ella te dará la frase.', beyond:true};
+const DENSITIES:Density[] = ['hanzi','pinyin','full'];
+const DENSITY_LABEL:Record<Density,string> = {hanzi:'汉字', pinyin:'+ pinyin', full:'+ significado'};
 const safeGet = (key:string) => {try{return localStorage.getItem(key) || ''}catch{return ''}};
-const time = (seconds:number) => `${Math.floor(seconds/60).toString().padStart(2,'0')}:${(seconds%60).toString().padStart(2,'0')}`;
+const demoRequested = () => {try{return new URLSearchParams(location.search).get('demo')==='1'}catch{return false}};
 
 export default function App() {
   const [history,setHistory] = useState<Session[]>(() => readHistory(localStorage,HISTORY_KEY));
@@ -32,12 +39,12 @@ export default function App() {
   const [error,setError] = useState('');
   const [storageError,setStorageError] = useState('');
   const [text,setText] = useState('');
-  const [seconds,setSeconds] = useState(0);
   const [starting,setStarting] = useState(false);
   const [closing,setClosing] = useState(false);
+  const [phrase,setPhrase] = useState<Phrase|null>(() => demoRequested() ? DEMO_PHRASE : null);
   // ?demo=1 opens the example view directly, so the app can be shown without spending credits.
-  const [demo,setDemo] = useState(() => {try{return new URLSearchParams(location.search).get('demo')==='1'}catch{return false}});
-  const [meaning,setMeaning] = useState(() => safeGet(MEANING_KEY) !== 'off');
+  const [demo,setDemo] = useState(demoRequested);
+  const [density,setDensity] = useState<Density>(() => {const v=safeGet(DENSITY_KEY) as Density; return DENSITIES.includes(v)?v:'full'});
   const [compact,setCompact] = useState(() => window.matchMedia?.('(max-width: 640px)').matches ?? false);
   const session = useRef<Session|null>(null);
   const historyRef = useRef(history);
@@ -45,7 +52,6 @@ export default function App() {
   const plan = makePlan(curriculum,level,topicId,history);
   const planRef = useRef(plan);
   const closingAt = useRef(0);
-  const transcriptEnd = useRef<HTMLDivElement>(null);
   const startLock = useRef(false);
 
   function save(patch:Partial<Session>) {
@@ -86,6 +92,17 @@ export default function App() {
           else save({feedback:[...session.current.feedback,result as Feedback]});
           return 'OK: saved locally. Do not read the JSON aloud.';
         }catch(e){return `ERROR: ${e instanceof Error ? e.message : 'Invalid payload'}. Fix the evidence or vocabulary and retry.`;}
+      },
+      // The phrase the student asked for. It is pinned on screen until dismissed,
+      // because you cannot repeat what vanished while you were still reading it.
+      suggest_phrase:({payload}) => {
+        try{
+          if(!session.current || session.current.ended) return 'ERROR: no active session';
+          const result=validatePhrase(payload,planRef.current) as Phrase;
+          setPhrase(result);
+          save({phrases:[...(session.current.phrases ?? []),result]});
+          return 'OK: pinned on screen. Say it once, then ask the student to repeat it.';
+        }catch(e){return `ERROR: ${e instanceof Error ? e.message : 'Invalid payload'}. Retry with hanzi, pinyin and es.`;}
       }
     }
   });
@@ -98,13 +115,14 @@ export default function App() {
     try { return live.isSpeaking ? live.getOutputVolume() : live.getInputVolume(); } catch { return 0; }
   },[]);
   const busy=starting || connected || conversation.status==='connecting';
+  const live=connected || starting;
 
   async function start() {
     if(startLock.current || busy) return;
     if(!/^agent_[a-zA-Z0-9]+$/.test(agentId.trim())){setConfigOpen(true);setError('Configura un Agent ID válido de ElevenLabs.');return;}
-    startLock.current=true; setStarting(true);setError('');setDemo(false);setClosing(false);setSeconds(0);closingAt.current=0;startedAt.current=0;
+    startLock.current=true; setStarting(true);setError('');setDemo(false);setClosing(false);setPhrase(null);closingAt.current=0;startedAt.current=0;
     planRef.current=plan;
-    session.current={id:crypto.randomUUID(),date:new Date().toISOString(),level,topic:plan.topic.title,mode,duration:0,messages:[],feedback:[],practiced:[],ended:false};
+    session.current={id:crypto.randomUUID(),date:new Date().toISOString(),level,topic:plan.topic.title,mode,duration:0,messages:[],feedback:[],practiced:[],phrases:[],ended:false};
     setActive(session.current);
     try {
       await conversation.startSession({agentId:agentId.trim(),connectionType:mode==='text'?'websocket':'webrtc',textOnly:mode==='text',dynamicVariables:{
@@ -121,18 +139,19 @@ export default function App() {
     setClosing(true);closingAt.current=Date.now();
     conversation.sendUserMessage('Terminemos la sesión. Resume únicamente lo que realmente practicamos, registra el resumen con record_learning y dame una tarea breve. Si no hicimos el miniquiz, marca completed=false.');
   }
+  // The clock still runs the session; it just no longer sits on screen counting at you.
   useEffect(()=>{
     if(!connected) return;
     const timer=window.setInterval(()=>{
-      const elapsed=Math.floor((Date.now()-startedAt.current)/1000);setSeconds(elapsed);
+      const elapsed=Math.floor((Date.now()-startedAt.current)/1000);
       if(elapsed>=curriculum.sessionMinutes*60 || (closingAt.current && Date.now()-closingAt.current>=45000)) void stop();
       else if(elapsed>=(curriculum.sessionMinutes-1)*60 && !closingAt.current) requestSummary();
     },500);
     return()=>clearInterval(timer);
   },[connected]);
   useEffect(()=>{const mq=window.matchMedia('(max-width: 640px)');const sync=()=>setCompact(mq.matches);mq.addEventListener('change',sync);return()=>mq.removeEventListener('change',sync)},[]);
-  useEffect(()=>{transcriptEnd.current?.scrollIntoView({block:'nearest',behavior:'smooth'})},[active?.messages.length]);
   useEffect(()=>{if(!busy)return;const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue=''};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[busy]);
+  useEffect(()=>{if(!live)return;const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape'&&phrase)setPhrase(null)};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey)},[live,phrase]);
 
   function exportNotebook() {
     const blob=new Blob([JSON.stringify({version:1,exportedAt:new Date().toISOString(),sessions:historyRef.current},null,2)],{type:'application/json'});
@@ -143,86 +162,126 @@ export default function App() {
     const value=text.trim();setText('');conversation.sendUserMessage(value);
     // SDK echoes user messages; that event is the single transcript source.
   }
+  function cycleDensity() {
+    setDensity(current=>{const next=DENSITIES[(DENSITIES.indexOf(current)+1)%DENSITIES.length];try{localStorage.setItem(DENSITY_KEY,next)}catch{/* preferencia no crítica */}return next});
+  }
+
   const shown=selected || active;
   const practiced=[...new Set(history.flatMap(s=>s.practiced))];
-  const currentFeedback=active?.feedback.at(-1);
   const visibleWords:Word[]=plan.allowed.filter((w:Word)=>plan.topic.words.includes(w.hanzi));
   const lastAgentLine=demo ? DEMO_LINE : (active?.messages.filter(m=>m.role==='agent').at(-1)?.text ?? '');
-  const lastUserLine=connected ? (active?.messages.filter(m=>m.role==='user').at(-1)?.text ?? '') : '';
+  // The subtitle holds until the next line replaces it. Nothing fades out from under you.
   const subtitle:Token[]=glossChinese(lastAgentLine,curriculum.words);
   const orbState:OrbState = !connected ? 'idle'
     : conversation.isSpeaking ? 'speaking'
     : (closing || active?.messages.at(-1)?.role==='user') ? 'thinking'
     : 'listening';
   const caption = connected
-    ? (closing?'Preparando tu resumen…':conversation.isSpeaking?'Tu profesora está hablando.':mode==='text'?'Escribe tu respuesta abajo.':'Te escucho. Tómate tu tiempo.')
-    : starting ? 'Conectando con tu profesora…' : 'Hola. Empecemos con algo sencillo.';
-  function toggleMeaning() {
-    setMeaning(value=>{const next=!value;try{localStorage.setItem(MEANING_KEY,next?'on':'off')}catch{/* preferencia no crítica */}return next});
-  }
-  return <div className="app-shell">
-    <header className="topbar">
-      <a className="brand" href="#" onClick={()=>{setView('practice');setSelected(null)}} aria-label="HSK Voice Coach, inicio"><span className="seal" lang="zh">言</span><span>HSK <b>Voice Coach</b><small>UN EXPERIMENTO DE MIRÓ LABS</small></span></a>
-      <nav aria-label="Navegación principal"><button className={view==='practice'?'nav-active':''} onClick={()=>{setView('practice');setSelected(null)}}>Práctica diaria</button><button className={view==='notebook'?'nav-active':''} onClick={()=>{setView('notebook');setSelected(null)}}><BookOpen size={16}/> Mi cuaderno{history.length>0 && <span className="count">{history.length}</span>}</button></nav>
-      <button className="icon-button" aria-label="Configurar ElevenLabs" onClick={()=>setConfigOpen(true)}><Settings size={20}/></button>
+    ? (closing?'Preparando tu resumen…':conversation.isSpeaking?'':mode==='text'?'Escribe tu respuesta.':'Te escucho.')
+    : starting ? 'Conectando…' : '';
+
+  // ── The conversation. Nothing on screen but the orb and what she just said. ──
+  if (live || (demo && !active)) return <div className="room">
+    <button className="room-exit" aria-label="Terminar la sesión" onClick={()=>{if(demo&&!active){setDemo(false);return}void stop()}}><X size={20}/></button>
+    <div className="room-orb"><Gradient state={demo?'speaking':orbState} getLevel={getLevel} size={compact?(phrase?168:220):(phrase?248:320)}/></div>
+    {caption && <p className="room-caption">{caption}</p>}
+    {subtitle.length>0 && <Subtitle tokens={subtitle} density={density}/>}
+    {density==='full' && subtitle.some(t=>t.es) && <p className="room-gloss">Significado palabra por palabra, no una traducción literal.</p>}
+    {error && <p role="alert" className="room-error">{error}</p>}
+    {phrase && <PhraseCard phrase={phrase} onClose={()=>setPhrase(null)}/>}
+    <div className="room-controls">
+      {subtitle.some(t=>t.hanzi) && <button className="ghost" onClick={cycleDensity} aria-label="Cambiar el detalle de los subtítulos">{DENSITY_LABEL[density]}</button>}
+      {connected && mode==='voice' && <button className="ghost" onClick={()=>conversation.setMuted(!conversation.isMuted)}>{conversation.isMuted?<MicOff size={16}/>:<Mic size={16}/>} {conversation.isMuted?'Activar':'Silenciar'}</button>}
+      {connected && <button className="ghost" disabled={closing} onClick={requestSummary}><Check size={16}/> Terminar</button>}
+      {demo && !active && <button className="ghost" onClick={()=>setDemo(false)}>Cerrar el ejemplo</button>}
+    </div>
+    {connected && mode==='text' && <form onSubmit={sendText} className="room-input"><input aria-label="Tu respuesta" placeholder="Escribe en español o mandarín…" value={text} onChange={e=>{setText(e.target.value);conversation.sendUserActivity()}} maxLength={1000}/><button className="icon-button" aria-label="Enviar" disabled={!text.trim()}><ArrowRight size={18}/></button></form>}
+  </div>;
+
+  // ── Everything else: choosing a session, and the notebook. ──
+  return <div className="page">
+    <header className="bar">
+      <button className="wordmark" onClick={()=>{setView('practice');setSelected(null)}}>HSK <b>Voice Coach</b></button>
+      <div>
+        <button className={view==='notebook'?'ghost on':'ghost'} onClick={()=>{setView('notebook');setSelected(null)}}><BookOpen size={16}/> Cuaderno{history.length>0 && <span className="count">{history.length}</span>}</button>
+        <button className="icon-button" aria-label="Configurar ElevenLabs" onClick={()=>setConfigOpen(true)}><Settings size={18}/></button>
+      </div>
     </header>
     <main>
-      {view==='practice' ? <>
-        <div className="page-intro"><div><p className="eyebrow">TU MOMENTO DE MANDARÍN</p><h1>Un poco, <em>cada día.</em></h1><p>Diez minutos de conversación. Una palabra más cerca.</p></div><label className="level-select">Tu nivel <span><select aria-label="Nivel HSK" disabled={busy} value={level} onChange={e=>{setLevel(Number(e.target.value));setTopicId('introductions')}}>{curriculum.levels.map(l=><option key={l.id} value={l.id}>{l.label}</option>)}</select><ChevronDown size={15}/></span></label></div>
-        <div className={'workspace '+(connected||starting?'workspace-live':'')}>
-          <section className="stage" aria-label="Conversación con tu profesora">
-            <div className="stage-top"><span className="eyebrow">{plan.topic.title.toUpperCase()}</span><span className="timer"><span className={connected?'status-dot live':'status-dot'}/>{time(seconds)} <span>/ {time(curriculum.sessionMinutes*60)}</span></span></div>
-            <div className="stage-orb"><Gradient state={orbState} getLevel={getLevel} size={compact?(connected||starting?208:180):(connected||starting?300:240)}/></div>
-            <p className="stage-state">{caption}</p>
-            <div className="subtitle-area">
-              {lastUserLine && <p className="stage-echo"><span>TÚ</span> {lastUserLine}</p>}
-              {subtitle.length>0
-                ? <Subtitle tokens={subtitle} showMeaning={meaning}/>
-                : !connected ? <div className="stage-hello"><p lang="zh">你好！</p><p className="pinyin">Nǐ hǎo!</p></div> : null}
-              {demo && <p className="demo-note">VISTA DE EJEMPLO · SIN CONEXIÓN <button className="text-button" onClick={()=>setDemo(false)}>Cerrar <X size={13}/></button></p>}
-              {meaning && subtitle.some(t=>t.es) && <p className="gloss-note">Significado palabra por palabra. No es una traducción literal de la frase.{!fullyGlossed(subtitle) && ' Las palabras sin significado están fuera de tu vocabulario de hoy.'}</p>}
-              {subtitle.some(t=>t.hanzi) && <button className="text-button meaning-toggle" aria-pressed={meaning} onClick={toggleMeaning}>{meaning?<EyeOff size={14}/>:<Eye size={14}/>} {meaning?'Ocultar significado':'Mostrar significado'}</button>}
-            </div>
-            {currentFeedback && !active?.ended && <FeedbackCard feedback={currentFeedback}/>}
-            {error && <p role="alert" className="error">{error}</p>}
-            <div className="session-controls">
-              {connected ? <><div className="connected-controls">{mode==='voice' && <button className="secondary" onClick={()=>conversation.setMuted(!conversation.isMuted)}>{conversation.isMuted?<MicOff size={18}/>:<Mic size={18}/>} {conversation.isMuted?'Activar micrófono':'Silenciar'}</button>}<button className="primary" disabled={closing} onClick={requestSummary}><Check size={18}/> Resumir y terminar</button><button className="icon-button" aria-label="Desconectar ahora" onClick={()=>void stop()}><Square size={18}/></button></div><form onSubmit={sendText} className="chat-input"><input aria-label="Tu respuesta" placeholder="También puedes escribir en español o mandarín…" value={text} onChange={e=>{setText(e.target.value);conversation.sendUserActivity()}} maxLength={1000}/><button className="icon-button" aria-label="Enviar respuesta" disabled={!text.trim()}><ArrowRight size={20}/></button></form>{closing && <small>Guardaremos la transcripción aunque no llegue el resumen. La conexión se cerrará en un máximo de 45 segundos.</small>}</> : <><div className="mode-toggle" aria-label="Modo de conversación"><button disabled={busy} aria-pressed={mode==='voice'} onClick={()=>setMode('voice')}><Mic size={15}/> Voz</button><button disabled={busy} aria-pressed={mode==='text'} onClick={()=>setMode('text')}>Texto</button></div><button className="primary start-button" disabled={busy} onClick={()=>void start()}>{starting?<AudioLines size={19}/>:mode==='voice'?<Mic size={19}/>:<ArrowRight size={19}/>} {starting?'Conectando…':agentId?'Empezar mi práctica':'Conectar ElevenLabs'} <ArrowRight size={18}/></button><p className="microcopy">{agentId?'La sesión usa créditos de ElevenLabs.':'Configura tu agente para conversar.'} {mode==='voice'?'Tu voz se envía a ElevenLabs.':'Tus mensajes se envían a ElevenLabs.'}</p>{!active && !demo && <button className="text-button" onClick={()=>setDemo(true)}>Ver un ejemplo sin usar créditos <ArrowRight size={14}/></button>}</>}
-            </div>
-            {connected && <div className="live-vocab" aria-label="Palabras de hoy">{visibleWords.map(w=><span key={w.hanzi}><b lang="zh">{w.hanzi}</b> {w.pinyin}</span>)}</div>}
-            {active && active.messages.length>0 && <details className="live-transcript"><summary>Ver la transcripción completa <ChevronDown size={14}/></summary><div className="transcript" role="log" aria-label="Transcripción de la sesión">{active.messages.map((m,i)=><div className={'message '+m.role} key={`${m.eventId ?? i}-${m.role}`}><span>{m.role==='user'?'TÚ':'PROFESORA'}</span><p>{m.text}</p></div>)}<div ref={transcriptEnd}/></div></details>}
-          </section>
-          {!(connected||starting) && <aside className="lesson-sidebar">
-            <div className="lesson-number">PRÁCTICA / {String(history.length+1).padStart(2,'0')}</div><h2>Hoy, hablemos<br/><em>de lo cotidiano.</em></h2><p className="sidebar-copy">Elige una situación para tu conversación.</p>
-            <label className="topic-label">Tema de hoy<select aria-label="Tema de hoy" disabled={busy} value={topicId} onChange={e=>setTopicId(e.target.value)}>{curriculum.topics.filter(t=>(t.minLevel || 1)<=level).map(t=><option value={t.id} key={t.id}>{t.title}</option>)}</select></label>
-            <div className="vocab-heading"><h3>Palabras para hoy</h3><span>{plan.targets.length} nuevas como máximo</span></div>
-            <div className="vocabulary">{visibleWords.map((w,i)=><div className="word-row" key={w.hanzi}><span className="word-index">0{i+1}</span><span lang="zh" className="hanzi">{w.hanzi}</span><span><b>{w.pinyin}</b><small>{w.es}</small></span></div>)}</div>
-            <div className="review-note"><BookOpen size={18}/><p>{plan.review.length?<>Repasaremos: <span lang="zh">{plan.review.join(' · ')}</span></>:'Tu próxima sesión retomará las palabras que practiques hoy.'}</p></div>
-            <details className="session-flow"><summary>El ritmo de tu sesión <ChevronDown size={15}/></summary><ol>{['Saludo y calentamiento','Repaso de hasta tres palabras anteriores','Hasta cinco palabras nuevas','Conversación o roleplay','Corrección y repetición','Miniquiz de tres preguntas','Resumen y una pequeña tarea'].map(s=><li key={s}>{s}</li>)}</ol></details>
-          </aside>}
+      {view==='practice' ? <section className="start">
+        <div className="start-orb"><Gradient state="idle" getLevel={getLevel} size={compact?168:208}/></div>
+        <h1>Un poco, <em>cada día.</em></h1>
+        <p className="start-copy">Diez minutos de conversación. Si no sabes decir algo, pregúntaselo — te dará la frase y la dejará escrita.</p>
+        <div className="start-picks">
+          <label>Nivel<select aria-label="Nivel HSK" value={level} onChange={e=>{setLevel(Number(e.target.value));setTopicId('introductions')}}>{curriculum.levels.map(l=><option key={l.id} value={l.id}>{l.label}</option>)}</select></label>
+          <label>Tema<select aria-label="Tema de hoy" value={topicId} onChange={e=>setTopicId(e.target.value)}>{curriculum.topics.filter(t=>(t.minLevel || 1)<=level).map(t=><option value={t.id} key={t.id}>{t.title}</option>)}</select></label>
+          <label>Modo<select aria-label="Modo" value={mode} onChange={e=>setMode(e.target.value as 'voice'|'text')}><option value="voice">Voz</option><option value="text">Texto</option></select></label>
         </div>
-        {active?.ended && active.messages.length>0 && <section className="session-result"><p className="eyebrow">TU SESIÓN ESTÁ EN EL CUADERNO</p><SessionDetail session={active}/></section>}
-        <div className="bottom-note"><Headphones size={18}/><p>Un lugar para equivocarte, repetir y seguir. Las indicaciones de pronunciación son aproximadas.</p><span>POWERED BY <b><span className="el-mark" aria-hidden="true"><i/><i/></span> ElevenLabs</b></span></div>
-      </> : <>
-        <div className="page-intro"><div><p className="eyebrow">TU APRENDIZAJE, A MANO</p><h1>Mi <em>cuaderno.</em></h1><p>{history.length} sesiones guardadas · {practiced.length} palabras practicadas</p></div><button className="secondary" disabled={!history.length} onClick={exportNotebook}><Download size={17}/> Descargar cuaderno</button></div>
-        {selected ? <section className="notebook-detail"><button className="text-button" onClick={()=>setSelected(null)}>← Todas las sesiones</button><SessionDetail session={shown!}/><details><summary>Transcripción completa</summary>{selected.messages.map((m,i)=><div className="message" key={i}><span>{m.role==='user'?'TÚ':'PROFESORA'}</span><p>{m.text}</p></div>)}</details></section> : history.length ? <div className="session-list">{history.map(s=><button key={s.id} onClick={()=>setSelected(s)}><span className="session-date">{new Date(s.date).toLocaleDateString('es',{day:'2-digit',month:'short'})}</span><span><b>{s.topic}</b><small>HSK {s.level} · {time(s.duration)} · {s.summary?.completed?'Práctica completada':'Práctica parcial'} · {s.mode==='voice'?'Voz':'Texto'}</small></span><span>{s.practiced.length} palabras</span><ArrowRight size={20}/></button>)}</div> : <div className="empty-notebook"><BookOpen size={38}/><h2>La primera página está por escribir.</h2><p>Aquí estarán tus conversaciones, correcciones y próximas tareas.</p><button className="primary" onClick={()=>setView('practice')}>Ir a mi práctica <ArrowRight size={17}/></button></div>}
-        <p className="privacy-note">Tu cuaderno se guarda en este navegador. No se sincroniza entre dispositivos. ElevenLabs procesa la conversación y puede conservarla según la configuración de tu agente.</p>
-      </>}
+        <button className="primary" disabled={busy} onClick={()=>void start()}>{agentId?'Empezar':'Conectar ElevenLabs'} <ArrowRight size={17}/></button>
+        <p className="microcopy">{agentId?'La sesión usa créditos de ElevenLabs.':'Configura tu agente para conversar.'} {mode==='voice'?'Tu voz se envía a ElevenLabs.':'Tus mensajes se envían a ElevenLabs.'}</p>
+        {error && <p role="alert" className="error">{error}</p>}
+        <div className="start-words"><span>Hoy</span>{visibleWords.map(w=><i key={w.hanzi}><b lang="zh">{w.hanzi}</b> {w.pinyin}</i>)}</div>
+        {!active && <button className="text-button" onClick={()=>{setDemo(true);setPhrase(DEMO_PHRASE)}}>Ver un ejemplo sin usar créditos</button>}
+        {active?.ended && active.messages.length>0 && <div className="after"><SessionDetail session={active}/></div>}
+      </section> : <section className="notebook">
+        <div className="notebook-head"><h1>Mi <em>cuaderno.</em></h1><button className="ghost" disabled={!history.length} onClick={exportNotebook}><Download size={16}/> Descargar</button></div>
+        <p className="start-copy">{history.length} sesiones · {practiced.length} palabras practicadas</p>
+        {selected ? <div className="notebook-detail"><button className="text-button" onClick={()=>setSelected(null)}><ArrowLeft size={14}/> Todas las sesiones</button><SessionDetail session={shown!}/><details><summary>Transcripción completa</summary>{selected.messages.map((m,i)=><div className="line" key={i}><span>{m.role==='user'?'TÚ':'PROFESORA'}</span><p>{m.text}</p></div>)}</details></div>
+        : history.length ? <div className="session-list">{history.map(s=><button key={s.id} onClick={()=>setSelected(s)}><span className="date">{new Date(s.date).toLocaleDateString('es',{day:'2-digit',month:'short'})}</span><span><b>{s.topic}</b><small>HSK {s.level} · {s.summary?.completed?'Completada':'Parcial'}</small></span><span className="count-words">{s.practiced.length}</span><ArrowRight size={18}/></button>)}</div>
+        : <div className="empty"><BookOpen size={32}/><p>La primera página está por escribir.</p><button className="primary" onClick={()=>setView('practice')}>Ir a mi práctica <ArrowRight size={16}/></button></div>}
+        <p className="microcopy">Tu cuaderno se guarda en este navegador. No se sincroniza entre dispositivos.</p>
+      </section>}
       {storageError && <p role="alert" className="error">{storageError} <button className="text-button" onClick={exportNotebook}>Descargar</button></p>}
     </main>
-    <footer><span>HSK Voice Coach <span className="footer-dot">·</span> MIRÓ Labs</span><span>{curriculum.framework} · Repertorio inicial de 40 palabras</span><a href="https://github.com/alonsorgl28/hsk-voice-coach" target="_blank" rel="noreferrer">Ver proyecto ↗</a></footer>
-    {configOpen && <div className="modal-backdrop" onClick={()=>setConfigOpen(false)}><section className="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={e=>e.stopPropagation()} onKeyDown={e=>{if(e.key==='Escape')setConfigOpen(false);if(e.key==='Tab'){const items=[...e.currentTarget.querySelectorAll<HTMLElement>('button,input,a')].filter(x=>!(x as HTMLButtonElement).disabled);const first=items[0],last=items.at(-1);if(e.shiftKey && document.activeElement===first){e.preventDefault();last?.focus()}else if(!e.shiftKey && document.activeElement===last){e.preventDefault();first?.focus()}}}}><button className="icon-button modal-close" aria-label="Cerrar configuración" onClick={()=>setConfigOpen(false)}><X size={20}/></button><p className="eyebrow">TU PROFESORA, CONECTADA</p><h2 id="settings-title">Conectar ElevenLabs</h2><p>Usa el identificador público de tu agente configurado para HSK Voice Coach.</p><label>Agent ID<input autoFocus disabled={busy} value={agentId} placeholder="agent_…" onChange={e=>setAgentId(e.target.value)} /></label><p className="microcopy">El Agent ID no es una API key. No pegues claves secretas aquí.</p><a href="https://elevenlabs.io/app/agents" target="_blank" rel="noreferrer">Abrir ElevenAgents ↗</a><button className="primary" disabled={busy || !/^agent_[a-zA-Z0-9]+$/.test(agentId.trim())} onClick={()=>{try{localStorage.setItem(AGENT_KEY,agentId.trim());setError('');setConfigOpen(false)}catch{setError('No se pudo guardar la configuración en este navegador.')}}}>Guardar conexión <Check size={18}/></button><p className="microcopy">Antes de conectar: publica el agente y configura las variables dinámicas y la herramienta record_learning del repositorio.</p></section></div>}
+    {configOpen && <Config agentId={agentId} setAgentId={setAgentId} busy={busy} onError={setError} onClose={()=>setConfigOpen(false)}/>}
   </div>;
 }
-function Subtitle({tokens,showMeaning}:{tokens:Token[]; showMeaning:boolean}) {
-  return <p className={'subtitle '+(showMeaning?'subtitle-glossed':'')}>
+
+function Subtitle({tokens,density}:{tokens:Token[]; density:Density}) {
+  return <p className={'subtitle subtitle-'+density}>
     {tokens.map((t,i)=> t.text !== undefined
       ? <span className="subtitle-es" key={i}>{t.text}</span>
       : <span className={'subtitle-word'+(t.es?'':' subtitle-plain')} key={i}>
           <b lang="zh">{t.hanzi}</b>
-          {showMeaning && t.pinyin && <i>{t.pinyin}</i>}
-          {showMeaning && t.es && <small>{t.es.split(';')[0].trim()}</small>}
+          {density!=='hanzi' && t.pinyin && <i>{t.pinyin}</i>}
+          {density==='full' && t.es && <small>{t.es.split(';')[0].trim()}</small>}
         </span>)}
   </p>;
 }
-function FeedbackCard({feedback}:{feedback:Feedback}) {return <div className="feedback-card"><span className="eyebrow">{feedback.kind==='correction'?'UNA PEQUEÑA CORRECCIÓN':'PARA RECORDAR'}</span><p lang="zh">{feedback.hanzi}</p><p className="pinyin">{feedback.pinyin}</p><p>{feedback.explanation}</p>{feedback.evidence && <small>Tu respuesta: {feedback.evidence}</small>}</div>}
-function SessionDetail({session}:{session:Session}) {return <><h2>{session.topic}</h2>{session.summary ? <div className="summary-grid"><div><h3>Vocabulario practicado</h3><p lang="zh">{session.summary.practiced.join(' · ') || 'Sin palabras registradas.'}</p><h3>Errores y frases corregidas</h3>{session.summary.errors.length?session.summary.errors.map((f,i)=><FeedbackCard key={i} feedback={f}/>):<p>No se registraron errores con evidencia. Esto no equivale a una evaluación de pronunciación.</p>}</div><div><h3>La próxima vez</h3><p>{session.summary.recommendation}</p><h3>Tu pequeña tarea</h3><p>{session.summary.homework}</p><small>{session.summary.completed?'Flujo completo según la profesora.':'Sesión parcial; quedan actividades por completar.'}</small></div></div> : <p>Transcripción guardada. La profesora no envió un resumen válido antes de la desconexión; no se atribuye progreso ni vocabulario.</p>}</>}
+
+// Pinned, never auto-dismissed: this is the answer to "¿cómo digo…?" and you need
+// it to stay put while you say it back.
+function PhraseCard({phrase,onClose}:{phrase:Phrase; onClose:()=>void}) {
+  return <aside className="phrase" role="note">
+    <button className="icon-button phrase-close" aria-label="Cerrar la frase" onClick={onClose}><X size={16}/></button>
+    <span className="phrase-label">PARA DECIRLO</span>
+    <p className="phrase-hanzi" lang="zh">{phrase.hanzi}</p>
+    <p className="phrase-pinyin">{phrase.pinyin}</p>
+    <p className="phrase-es">{phrase.es}</p>
+    {phrase.context && <p className="phrase-context">{phrase.context}</p>}
+    {phrase.beyond && <p className="phrase-beyond">Fuera de tu nivel de hoy. Queda en el cuaderno, pero no cuenta como vocabulario practicado.</p>}
+  </aside>;
+}
+
+function FeedbackCard({feedback}:{feedback:Feedback}) {
+  return <div className="feedback"><span className="phrase-label">{feedback.kind==='correction'?'UNA CORRECCIÓN':'PARA RECORDAR'}</span><p lang="zh" className="phrase-hanzi">{feedback.hanzi}</p><p className="phrase-pinyin">{feedback.pinyin}</p><p>{feedback.explanation}</p>{feedback.evidence && <small>Tu respuesta: {feedback.evidence}</small>}</div>;
+}
+
+function SessionDetail({session}:{session:Session}) {
+  return <><h2>{session.topic}</h2>{session.summary ? <div className="summary">
+    <div><h3>Vocabulario practicado</h3><p lang="zh">{session.summary.practiced.join(' · ') || 'Sin palabras registradas.'}</p><h3>Correcciones</h3>{session.summary.errors.length?session.summary.errors.map((f,i)=><FeedbackCard key={i} feedback={f}/>):<p>No se registraron errores con evidencia. Esto no equivale a una evaluación de pronunciación.</p>}</div>
+    <div><h3>La próxima vez</h3><p>{session.summary.recommendation}</p><h3>Tu tarea</h3><p>{session.summary.homework}</p>{session.phrases && session.phrases.length>0 && <><h3>Frases que pediste</h3>{session.phrases.map((p,i)=><p key={i}><b lang="zh">{p.hanzi}</b> — {p.es}</p>)}</>}<small>{session.summary.completed?'Flujo completo según la profesora.':'Sesión parcial; quedan actividades por completar.'}</small></div>
+  </div> : <p>Transcripción guardada. La profesora no envió un resumen válido antes de la desconexión; no se atribuye progreso ni vocabulario.</p>}</>;
+}
+
+function Config({agentId,setAgentId,busy,onError,onClose}:{agentId:string; setAgentId:(v:string)=>void; busy:boolean; onError:(v:string)=>void; onClose:()=>void}) {
+  return <div className="backdrop" onClick={onClose}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={e=>e.stopPropagation()} onKeyDown={e=>{if(e.key==='Escape')onClose()}}>
+    <button className="icon-button modal-close" aria-label="Cerrar" onClick={onClose}><X size={18}/></button>
+    <h2 id="settings-title">Conectar ElevenLabs</h2>
+    <p>Usa el identificador público de tu agente.</p>
+    <label>Agent ID<input autoFocus disabled={busy} value={agentId} placeholder="agent_…" onChange={e=>setAgentId(e.target.value)}/></label>
+    <p className="microcopy">El Agent ID no es una API key. No pegues claves secretas aquí.</p>
+    <a href="https://elevenlabs.io/app/agents" target="_blank" rel="noreferrer">Abrir ElevenLabs ↗</a>
+    <button className="primary" disabled={busy || !/^agent_[a-zA-Z0-9]+$/.test(agentId.trim())} onClick={()=>{try{localStorage.setItem(AGENT_KEY,agentId.trim());onError('');onClose()}catch{onError('No se pudo guardar la configuración en este navegador.')}}}>Guardar <Check size={16}/></button>
+  </section></div>;
+}

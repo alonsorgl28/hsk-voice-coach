@@ -57,3 +57,25 @@ export function readHistory(storage, key) {
 export function upsertSession(history, session, limit) {
   return [session, ...history.filter(s => s.id !== session.id)].slice(0, limit);
 }
+
+// "¿Cómo digo…?" — the phrase the teacher hands you to keep on screen.
+// Unlike a lesson, this one is ALLOWED to leave the session vocabulary: asking for
+// something you cannot say yet is the entire point. We flag what falls outside the
+// level instead of rejecting it, so the progress count stays honest either way.
+export function validatePhrase(raw, plan) {
+  const event = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  if (!event) throw Error('Sugerencia vacía.');
+  const field = (name, max) => {
+    if (typeof event[name] !== 'string' || !event[name].trim() || event[name].length > max) throw Error(`Campo no válido: ${name}`);
+    return event[name].trim();
+  };
+  const hanzi = field('hanzi', 240);
+  if (!/\p{Script=Han}/u.test(hanzi)) throw Error('La sugerencia no contiene chino.');
+  return {
+    hanzi,
+    pinyin: field('pinyin', 500),
+    es: field('es', 500),
+    context: typeof event.context === 'string' ? event.context.trim().slice(0, 600) : '',
+    beyond: !chineseAllowed(hanzi, plan.allowed.map(w => w.hanzi)),
+  };
+}

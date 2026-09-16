@@ -16,8 +16,9 @@ estudiante que lee HSK 2 y no sabe presentarse en voz alta.
 
 Una sesión diaria de diez minutos, hablada, con una profesora de IA que:
 
-- ocupa el centro de la pantalla como un gradiente animado que reacciona a la voz —
-  escucha, piensa y habla, sin interfaz de chat de por medio;
+- ocupa el centro de una pantalla blanca y vacía como un gradiente animado que reacciona
+  a la voz — escucha, piensa y habla, sin interfaz de chat de por medio;
+- te da la frase cuando no sabes decir algo, y la deja fija en pantalla;
 - habla principalmente en mandarín y explica en español;
 - se limita al vocabulario del nivel HSK seleccionado;
 - introduce como máximo cinco palabras nuevas por sesión;
@@ -34,6 +35,7 @@ Navegador (React + Vite)
    ├── @elevenlabs/react  ──WebRTC (voz) / WebSocket (texto)──►  ElevenLabs Agent
    │      · dynamicVariables: nivel, tema, vocabulario permitido
    │      · clientTool record_learning ◄── el agente registra lo aprendido
+   │      · clientTool suggest_phrase  ◄── el agente fija una frase en pantalla
    │
    ├── src/learning.mjs   capa de validación (el agente no puede mentir)
    ├── src/subtitles.mjs  glosa palabra por palabra de lo que dice la profesora
@@ -56,33 +58,65 @@ key en el cliente**, así que no hace falta un servidor que la proteja.
 | `agent/setup.md` | Cómo configurar el agente en el dashboard |
 | `tests/learning.test.mjs` | Tests de contrato de la capa de validación |
 | `tests/subtitles.test.mjs` | Tests de la glosa de subtítulos |
+| `tests/phrase.test.mjs` | Tests de la frase fija de `suggest_phrase` |
 
 ## Uso de ElevenLabs
 
 - **Agents** para el agente conversacional: voz, system prompt, variables dinámicas y
   herramientas de cliente.
 - **`@elevenlabs/react`** (`useConversation`) para la integración: WebRTC en modo voz,
-  WebSocket en modo texto, transcripción en vivo y `record_learning` como client tool.
+  WebSocket en modo texto, transcripción en vivo, y `record_learning` y `suggest_phrase`
+  como client tools.
 - **Variables dinámicas** para inyectar en cada sesión el nivel, el tema, el vocabulario
   permitido y la recomendación anterior, sin duplicar prompts por nivel.
 
 ### La interacción: un objeto que escucha, no un hilo de mensajes
 
-La sesión no se lee, se habla. En el centro hay un gradiente animado que es la profesora:
-un lienzo que dibuja cinco masas de color sobre una base saturada y se mueve con el audio
-real de la conversación — `getInputVolume()` mientras hablas tú, `getOutputVolume()`
-mientras habla ella. Tiene cuatro estados con color, escala y velocidad propios: en reposo,
-escuchando, pensando y hablando. El ataque es rápido y la caída lenta, así que la masa salta
-con la voz y se asienta despacio en lugar de parpadear.
+La sesión no se lee, se habla. Durante la conversación la pantalla está blanca y no hay
+nada en ella salvo el gradiente y lo que la profesora acaba de decir. Ni reloj, ni barra
+de navegación, ni lista de vocabulario: todo eso vive antes de empezar y después de
+terminar, porque contar los segundos no enseña nada y mirar una lista mientras deberías
+escuchar, tampoco.
+
+En el centro hay un gradiente animado que es la profesora: un lienzo que dibuja cinco
+masas de color sobre una base saturada y se mueve con el audio real de la conversación —
+`getInputVolume()` mientras hablas tú, `getOutputVolume()` mientras habla ella. Tiene
+cuatro estados con color, escala y velocidad propios: en reposo, escuchando, pensando y
+hablando. El ataque es rápido y la caída lenta, así que la masa salta con la voz y se
+asienta despacio en lugar de parpadear.
+
+Dos detalles hacen el movimiento. El primero es que las masas no se desplazan con senos y
+cosenos sino con **ruido de valor**: una onda tiene un periodo visible y a los diez
+segundos ves el gradiente repetirse, y el ruido no se repite nunca. El segundo es el
+**grano**, que es la firma del estilo: cuatro texturas de ruido pregeneradas que se
+alternan en un reloj lento y se superponen en modo `overlay`, como el grano de una
+película. El borde no se recorta con un círculo, se disuelve con una máscara suave, que es
+lo que permite que la masa se apoye sobre el blanco sin parecer un adhesivo.
 
 Todo pasa fuera del ciclo de render de React: el nivel se lee dentro de `requestAnimationFrame`
 a través de una referencia, nunca desde el estado, y el halo se controla con variables CSS
-escritas directamente sobre el nodo. La transcripción sigue existiendo, pero plegada.
+escritas directamente sobre el nodo.
+
+### "Oye, ¿cómo digo esto?"
+
+El caso de uso que más se repite aprendiendo un idioma es querer decir algo que todavía no
+sabes decir. No hace falta ningún botón: se lo dices y ya está. Lo que hace la app es que
+su respuesta **no se desvanezca** — la profesora la manda por la client tool
+`suggest_phrase` y la tarjeta se queda fija hasta que la cierras, porque no puedes repetir
+una frase que desapareció mientras la leías.
+
+Esta es la única herramienta que acepta vocabulario fuera de tu nivel, y es deliberado:
+pedir cómo se dice algo es, casi siempre, pedir lenguaje que aún no tienes. La app marca
+esas frases como fuera de nivel y no las cuenta como vocabulario practicado, así que el
+progreso HSK sigue siendo honesto.
 
 ### Los subtítulos: significado sin inventar traducciones
 
 Bajo el gradiente aparece lo último que dijo la profesora, con el pinyin y el significado
-en español debajo de cada palabra. La glosa no se le pide al modelo: se calcula en el
+en español debajo de cada palabra. El subtítulo se mantiene hasta que la frase siguiente lo
+reemplaza: nunca se desvanece por su cuenta mientras lo estás leyendo. Un único control
+recorre tres densidades — solo 汉字, con pinyin, y con significado — y recuerda cuál
+prefieres. La glosa no se le pide al modelo: se calcula en el
 cliente segmentando el chino contra `curriculum.json` (`src/subtitles.mjs`), prefiriendo
 siempre la palabra más larga. Una palabra que no está en el vocabulario aparece sin
 significado y la app lo dice, en vez de adivinar. Es una glosa palabra por palabra, no una
@@ -165,9 +199,10 @@ examen ni de libros de texto. Detalle en [`docs/hsk-source.md`](docs/hsk-source.
 | Entregable | Estado |
 |---|---|
 | Aplicación funcional | Hecho |
-| Capa de validación + tests | Hecho (15/15) |
-| Rediseño con el sistema visual de ElevenLabs | Hecho |
+| Capa de validación + tests | Hecho (23/23) |
+| Rediseño en blanco, solo voz y gradiente | Hecho |
 | Interacción por gradiente animado + subtítulos | Hecho |
+| Frase fija al preguntar "¿cómo digo…?" | Hecho (falta declarar la tool en el dashboard) |
 | Agente configurado en ElevenLabs | Pendiente |
 | Cinco conversaciones de prueba | Pendiente |
 | Despliegue | Pendiente |
