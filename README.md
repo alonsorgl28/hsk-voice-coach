@@ -70,6 +70,12 @@ key en el cliente**, así que no hace falta un servidor que la proteja.
 - **Variables dinámicas** para inyectar en cada sesión el nivel, el tema, el vocabulario
   permitido y la recomendación anterior, sin duplicar prompts por nivel.
 
+### Tipografía
+
+**General Sans** (Fontshare) en una sola familia y cuatro pesos, más **Noto Sans SC** para
+el chino. Es una alternativa libre a PP Neue Montreal, que es la del estilo de referencia
+y es de pago.
+
 ### La interacción: un objeto que escucha, no un hilo de mensajes
 
 La sesión no se lee, se habla. Durante la conversación la pantalla está blanca y no hay
@@ -85,13 +91,29 @@ cuatro estados con color, escala y velocidad propios: en reposo, escuchando, pen
 hablando. El ataque es rápido y la caída lenta, así que la masa salta con la voz y se
 asienta despacio en lugar de parpadear.
 
-Dos detalles hacen el movimiento. El primero es que las masas no se desplazan con senos y
-cosenos sino con **ruido de valor**: una onda tiene un periodo visible y a los diez
-segundos ves el gradiente repetirse, y el ruido no se repite nunca. El segundo es el
-**grano**, que es la firma del estilo: cuatro texturas de ruido pregeneradas que se
-alternan en un reloj lento y se superponen en modo `overlay`, como el grano de una
-película. El borde no se recorta con un círculo, se disuelve con una máscara suave, que es
-lo que permite que la masa se apoye sobre el blanco sin parecer un adhesivo.
+Cuatro detalles hacen el movimiento.
+
+**El desplazamiento es ruido, no ondas.** Una onda tiene un periodo visible y a los diez
+segundos ves el gradiente repetirse; el ruido de valor no se repite nunca.
+
+**El contorno no es un círculo.** Se traza en coordenadas polares con el radio modulado
+por ruido muestreado *sobre* una circunferencia, lo que lo hace periódico en θ de balde y
+garantiza que la forma siempre cierre sobre sí misma.
+
+**El motion blur es acumulación.** En vez de borrar el lienzo cada frame, se le pasa una
+capa de blanco casi transparente por encima; lo que sobrevive debajo es la estela. Es el
+mismo principio que el `WebGLRenderTarget` de las referencias en Three.js, pero en canvas
+2D y sin una sola dependencia. Cuanto más baja la opacidad de ese lavado, más larga la
+cola: al pensar es de `.04` y la estela es larga, en reposo es de `.085` y apenas se
+insinúa.
+
+**El cuerpo se compone a través de un desenfoque.** Se dibuja en un lienzo aparte y se
+vuelca con `filter: blur()`, porque un `clip()` deja un borde a navaja y en la referencia
+no hay un solo filo. El grano — cuatro texturas de ruido alternadas en `overlay` — va
+recortado al cuerpo y no a toda la caja: pintado sobre la estela, que se vuelve a granular
+en cada frame, se sedimenta en un moteado sucio.
+
+Medido: 0,18 ms por frame a 640×640, contra un presupuesto de 16,7 ms.
 
 Todo pasa fuera del ciclo de render de React: el nivel se lee dentro de `requestAnimationFrame`
 a través de una referencia, nunca desde el estado, y el halo se controla con variables CSS
@@ -202,6 +224,7 @@ examen ni de libros de texto. Detalle en [`docs/hsk-source.md`](docs/hsk-source.
 | Capa de validación + tests | Hecho (23/23) |
 | Rediseño en blanco, solo voz y gradiente | Hecho |
 | Interacción por gradiente animado + subtítulos | Hecho |
+| Motion blur por acumulación y contorno deformable | Hecho |
 | Frase fija al preguntar "¿cómo digo…?" | Hecho (falta declarar la tool en el dashboard) |
 | Agente configurado en ElevenLabs | Pendiente |
 | Cinco conversaciones de prueba | Pendiente |

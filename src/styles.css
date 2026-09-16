@@ -3,9 +3,10 @@
    orb and what she just said. Everything else lives before or after. */
 
 :root {
-  --ui: 'Inter', system-ui, -apple-system, sans-serif;
-  --display: 'Inter Tight', 'Inter', system-ui, sans-serif;
-  --zh: 'Noto Sans SC', 'Inter', system-ui, sans-serif;
+  /* One family in a few weights, the way the reference does it. */
+  --ui: 'General Sans', system-ui, -apple-system, sans-serif;
+  --display: 'General Sans', system-ui, sans-serif;
+  --zh: 'Noto Sans SC', 'General Sans', system-ui, sans-serif;
   --paper: #fff;
   --ink: #111213;
   --soft: #6d6e70;
@@ -33,19 +34,6 @@ body {
   position: relative;
   display: grid;
   place-items: center;
-  transform: scale(var(--orb-lift, 1));
-  transition: transform .18s ease-out;
-}
-.orb::after {
-  content: '';
-  position: absolute;
-  inset: -22%;
-  border-radius: 50%;
-  /* The halo bleeds past the canvas, so the mass sits in the light rather than on it. */
-  background: radial-gradient(circle, rgba(255,120,60,calc(var(--orb-glow, .3) * .30)) 0%, rgba(255,90,140,calc(var(--orb-glow, .3) * .13)) 42%, transparent 70%);
-  opacity: .9;
-  pointer-events: none;
-  z-index: -1;
 }
 .orb canvas { display: block; }
 
@@ -111,9 +99,9 @@ body {
   align-items: center;
   gap: 6px;
   width: min(460px, 100%);
-  padding: 5px 5px 5px 16px;
+  padding: 5px 5px 5px 14px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 9px;
 }
 .room-input input {
   flex: 1;
@@ -178,7 +166,7 @@ body {
   width: min(430px, 100%);
   padding: 20px 22px 18px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 10px;
   background: var(--paper);
   box-shadow: 0 14px 40px rgba(17,18,19,.09);
   text-align: left;
@@ -221,9 +209,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 13px 24px;
+  padding: 12px 22px;
   border: none;
-  border-radius: 999px;
+  border-radius: 7px;
   background: var(--ink);
   color: #fff;
   font-family: var(--ui);
@@ -238,19 +226,20 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--paper);
-  color: var(--soft);
+  padding: 8px 13px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: #ededed;
+  color: #2a2b2c;
   font-family: var(--ui);
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   transition: color .15s, border-color .15s;
 }
-.ghost:hover { color: var(--ink); border-color: #d8d8d9; }
+.ghost:hover { background: #e3e3e3; color: #000; }
 .ghost:disabled { opacity: .4; cursor: not-allowed; }
-.ghost.on { color: var(--ink); border-color: var(--ink); }
+.ghost.on { background: var(--ink); color: #fff; }
 .icon-button {
   display: grid;
   place-items: center;
@@ -339,7 +328,7 @@ main { flex: 1; width: 100%; max-width: 720px; margin: 0 auto; padding: 0 24px 6
 .start-picks select, .modal input {
   padding: 9px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 7px;
   background: var(--paper);
   font-family: var(--ui);
   font-size: 14px;
@@ -440,7 +429,7 @@ details summary { cursor: pointer; color: var(--soft); font-size: 13px; }
   flex-direction: column;
   gap: 12px;
   padding: 28px;
-  border-radius: 20px;
+  border-radius: 12px;
   background: var(--paper);
   box-shadow: 0 20px 56px rgba(17,18,19,.16);
 }

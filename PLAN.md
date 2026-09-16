@@ -15,6 +15,10 @@
       gradiente y lo que ella acaba de decir. Reloj, navegación y vocabulario se fueron
       a antes y después.
 - [x] Gradiente con grano y ruido de valor, borde disuelto y paleta luminosa sobre blanco.
+- [x] Motion blur por acumulación de frames y contorno deformado por ruido, siguiendo la
+      referencia tech73 pero en canvas 2D: sin Three.js, sin sumar ~150 KB gzip.
+- [x] Tipografía General Sans (alternativa libre a PP Neue Montreal, que es de pago) y
+      controles rectangulares al estilo de la referencia.
 - [x] `suggest_phrase`: al preguntar "¿cómo digo esto?" la frase queda fija en pantalla.
       Acepta vocabulario fuera de nivel y lo marca sin contarlo como practicado.
 - [x] Versiones de dependencias fijadas.
@@ -27,6 +31,9 @@
       Ahora son DOS client tools: `record_learning` y `suggest_phrase`.
 - [ ] Verificar el gradiente contra la referencia de grainient.supply (el original es un
       MP4 tras un muro de pago; falta una captura para comparar).
+- [ ] Decidir si las estelas necesitan ser más marcadas. La referencia tech73 es una pieza
+      a pantalla completa; aquí el objeto mide 320 px y vive encima del texto que hay que
+      leer, así que se frenó antes de llegar a su intensidad.
 - [ ] Cinco conversaciones de prueba con evidencia en `docs/pruebas.md`.
 - [ ] Despliegue en Vercel y allowlist del dominio en el agente.
 - [ ] Párrafo de postulación y bullet de CV, escritos sobre resultados reales.
