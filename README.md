@@ -16,6 +16,8 @@ estudiante que lee HSK 2 y no sabe presentarse en voz alta.
 
 Una sesión diaria de diez minutos, hablada, con una profesora de IA que:
 
+- ocupa el centro de la pantalla como un gradiente animado que reacciona a la voz —
+  escucha, piensa y habla, sin interfaz de chat de por medio;
 - habla principalmente en mandarín y explica en español;
 - se limita al vocabulario del nivel HSK seleccionado;
 - introduce como máximo cinco palabras nuevas por sesión;
@@ -34,6 +36,8 @@ Navegador (React + Vite)
    │      · clientTool record_learning ◄── el agente registra lo aprendido
    │
    ├── src/learning.mjs   capa de validación (el agente no puede mentir)
+   ├── src/subtitles.mjs  glosa palabra por palabra de lo que dice la profesora
+   ├── src/Gradient.tsx   el gradiente animado, alimentado por el audio real
    │
    └── localStorage       cuaderno de sesiones
 ```
@@ -44,11 +48,14 @@ key en el cliente**, así que no hace falta un servidor que la proteja.
 | Archivo | Responsabilidad |
 |---|---|
 | `src/App.tsx` | UI y ciclo de vida de la sesión |
+| `src/Gradient.tsx` | El gradiente animado y sus cuatro estados |
+| `src/subtitles.mjs` | Segmentación y glosa de los subtítulos |
 | `src/learning.mjs` | Plan de la sesión + validación de lo que reporta el agente |
 | `src/curriculum.json` | Niveles, temas, vocabulario y límites — todo configurable |
 | `agent/system-prompt.md` | System prompt de la profesora |
 | `agent/setup.md` | Cómo configurar el agente en el dashboard |
 | `tests/learning.test.mjs` | Tests de contrato de la capa de validación |
+| `tests/subtitles.test.mjs` | Tests de la glosa de subtítulos |
 
 ## Uso de ElevenLabs
 
@@ -58,6 +65,28 @@ key en el cliente**, así que no hace falta un servidor que la proteja.
   WebSocket en modo texto, transcripción en vivo y `record_learning` como client tool.
 - **Variables dinámicas** para inyectar en cada sesión el nivel, el tema, el vocabulario
   permitido y la recomendación anterior, sin duplicar prompts por nivel.
+
+### La interacción: un objeto que escucha, no un hilo de mensajes
+
+La sesión no se lee, se habla. En el centro hay un gradiente animado que es la profesora:
+un lienzo que dibuja cinco masas de color sobre una base saturada y se mueve con el audio
+real de la conversación — `getInputVolume()` mientras hablas tú, `getOutputVolume()`
+mientras habla ella. Tiene cuatro estados con color, escala y velocidad propios: en reposo,
+escuchando, pensando y hablando. El ataque es rápido y la caída lenta, así que la masa salta
+con la voz y se asienta despacio en lugar de parpadear.
+
+Todo pasa fuera del ciclo de render de React: el nivel se lee dentro de `requestAnimationFrame`
+a través de una referencia, nunca desde el estado, y el halo se controla con variables CSS
+escritas directamente sobre el nodo. La transcripción sigue existiendo, pero plegada.
+
+### Los subtítulos: significado sin inventar traducciones
+
+Bajo el gradiente aparece lo último que dijo la profesora, con el pinyin y el significado
+en español debajo de cada palabra. La glosa no se le pide al modelo: se calcula en el
+cliente segmentando el chino contra `curriculum.json` (`src/subtitles.mjs`), prefiriendo
+siempre la palabra más larga. Una palabra que no está en el vocabulario aparece sin
+significado y la app lo dice, en vez de adivinar. Es una glosa palabra por palabra, no una
+traducción de la frase, y la interfaz también lo advierte.
 
 ### La decisión de diseño principal: el agente no puede inventar progreso
 
@@ -85,6 +114,8 @@ El cuaderno solo guarda lo que de verdad ocurrió.
 - **Vocabulario en JSON, no en el prompt.** Añadir HSK 3 es editar `curriculum.json`.
 - **Modo texto además de voz.** Sirve para probar sin gastar créditos de voz y como
   alternativa cuando el reconocimiento falla.
+- **`?demo=1`.** Abre la vista de ejemplo con los subtítulos, sin conectar ni gastar
+  créditos. Sirve para enseñar la app.
 - **Cierre con tiempo límite.** A los 9 minutos la app pide el resumen; si el agente no
   responde en 45 segundos, corta igual y guarda la transcripción sin resumen. Una sesión
   desconectada nunca se marca como completada.
@@ -112,7 +143,7 @@ Necesitas un agente propio en ElevenLabs. Los pasos están en
 [`agent/setup.md`](agent/setup.md) — se tarda unos diez minutos.
 
 ```bash
-npm test        # tests de la capa de validación
+npm test        # tests de validación y subtítulos
 npm run build   # typecheck + build de producción
 ```
 
@@ -134,8 +165,9 @@ examen ni de libros de texto. Detalle en [`docs/hsk-source.md`](docs/hsk-source.
 | Entregable | Estado |
 |---|---|
 | Aplicación funcional | Hecho |
-| Capa de validación + tests | Hecho (7/7) |
+| Capa de validación + tests | Hecho (15/15) |
 | Rediseño con el sistema visual de ElevenLabs | Hecho |
+| Interacción por gradiente animado + subtítulos | Hecho |
 | Agente configurado en ElevenLabs | Pendiente |
 | Cinco conversaciones de prueba | Pendiente |
 | Despliegue | Pendiente |
