@@ -5,6 +5,14 @@ diez minutos al día siguiendo el vocabulario del HSK.
 
 ![HSK Voice Coach](docs/screenshots/desktop.png)
 
+## Práctica guiada
+
+El inicio ofrece «¿Agua o té?» con cinco etapas: recordar, escuchar, practicar, conversar y comprobar. La app controla el avance, conserva las pistas usadas y permite retomar una lección interrumpida. Los ejemplos y las respuestas aceptadas viven en `src/lessons.json`.
+
+El audio de modelos usa una voz de mandarín del navegador cuando está disponible. Hay una alternativa de lectura. ElevenLabs se conecta solo al pulsar «Conectar voz»; las conversaciones remotas usan créditos. La comparación de frases admite puntuación y espacios, pero no evalúa respuestas abiertas arbitrarias ni pronunciación.
+
+El cuaderno diferencia exposición, reconocimiento, repetición y recuperación sin modelo. Las respuestas escritas y las transcripciones de voz conservan su modalidad. `src/progress.mjs` reconstruye el progreso y programa intervalos configurables de 1, 3, 7 y 14 días; repetir el mismo día no extiende el intervalo. Las frases personales se practican por separado y no inflan el progreso HSK.
+
 ## El problema
 
 Aprender mandarín falla por falta de conversación, no por falta de material. Las apps de
@@ -137,7 +145,7 @@ progreso HSK sigue siendo honesto.
 Bajo el gradiente aparece lo último que dijo la profesora, con el pinyin y el significado
 en español debajo de cada palabra. El subtítulo se mantiene hasta que la frase siguiente lo
 reemplaza: nunca se desvanece por su cuenta mientras lo estás leyendo. Un único control
-recorre tres densidades — solo 汉字, con pinyin, y con significado — y recuerda cuál
+recorre cuatro densidades — texto oculto, solo 汉字, con pinyin y con significado — y recuerda cuál
 prefieres. La glosa no se le pide al modelo: se calcula en el
 cliente segmentando el chino contra `curriculum.json` (`src/subtitles.mjs`), prefiriendo
 siempre la palabra más larga. Una palabra que no está en el vocabulario aparece sin
@@ -155,8 +163,8 @@ Aquí `record_learning` no escribe directamente en el cuaderno. Pasa por
 
 - **vocabulario fuera de nivel** — el chino debe segmentarse íntegramente en palabras
   permitidas de esta sesión;
-- **progreso sin evidencia** — cada palabra de `practiced` debe aparecer literalmente en
-  la transcripción;
+- **progreso sin evidencia** — cada palabra de `practiced` debe aparecer en un mensaje real
+  del estudiante, excluyendo comandos de la app;
 - **correcciones inventadas** — cada corrección exige una cita exacta de un mensaje real
   del estudiante.
 
@@ -203,6 +211,8 @@ npm test        # tests de validación y subtítulos
 npm run build   # typecheck + build de producción
 ```
 
+Las métricas de conversación guardan interrupciones y el tiempo entre recibir una transcripción y el evento de audio. Este último es un indicador del cliente, no una medición acústica del final del habla ni una promesa de latencia.
+
 ## Marco HSK
 
 Se usa el temario HSK 3.0 publicado en noviembre de 2025 (implementación indicada para
@@ -221,12 +231,12 @@ examen ni de libros de texto. Detalle en [`docs/hsk-source.md`](docs/hsk-source.
 | Entregable | Estado |
 |---|---|
 | Aplicación funcional | Hecho |
-| Capa de validación + tests | Hecho (23/23) |
+| Capa de validación + tests | Hecho (35/35) |
 | Rediseño en blanco, solo voz y gradiente | Hecho |
 | Interacción por gradiente animado + subtítulos | Hecho |
 | Motion blur por acumulación y contorno deformable | Hecho |
-| Frase fija al preguntar "¿cómo digo…?" | Hecho (falta declarar la tool en el dashboard) |
-| Agente configurado en ElevenLabs | Pendiente |
+| Frase fija al preguntar "¿cómo digo…?" | Implementado; ver registro de validación |
+| Agente configurado en ElevenLabs | Ver `docs/implementation-2026-10-31.md` |
 | Cinco conversaciones de prueba | Pendiente |
 | Despliegue | Pendiente |
 

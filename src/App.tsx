@@ -5,15 +5,19 @@ import curriculum from './curriculum.json';
 import { makePlan, readHistory, upsertSession, validateLearningEvent, validatePhrase } from './learning.mjs';
 import { glossChinese } from './subtitles.mjs';
 import Gradient, { type OrbState } from './Gradient';
+import GuidedLesson from './GuidedLesson';
+import PhrasePractice from './PhrasePractice';
+import lessonConfig from './lessons.json';
+import {deriveProgress, reviewQueue, validRun, type createRun, type lessonSession} from './progress.mjs';
 
-type Message = {role:'user'|'agent'; text:string; eventId?:number};
+type Message = {role:'user'|'agent'; text:string; eventId?:number;control?:boolean;receivedAt?:string};
 type Word = typeof curriculum.words[number];
 type Feedback = {kind:'lesson'|'correction'; hanzi:string; pinyin:string; explanation:string; evidence?:string};
 type Summary = {kind:'summary'; practiced:string[]; errors:Feedback[]; recommendation:string; homework:string; completed:boolean};
 type Phrase = {hanzi:string; pinyin:string; es:string; context:string; beyond:boolean};
 type Token = {hanzi?:string; pinyin?:string; es?:string; text?:string};
-type Session = {id:string; conversationId?:string; date:string; level:number; topic:string; mode:'voice'|'text'; duration:number; messages:Message[]; feedback:Feedback[]; practiced:string[]; phrases?:Phrase[]; summary?:Summary; ended:boolean};
-type Density = 'hanzi'|'pinyin'|'full';
+type Session = {id:string; conversationId?:string; date:string; level:number; topic:string; mode:'voice'|'text'|'guided'; duration:number; messages:Message[]; feedback:Feedback[]; practiced:string[]; phrases?:Phrase[]; summary?:Summary; ended:boolean;run?:ReturnType<typeof createRun>;learningEvents?:ReturnType<typeof lessonSession>['learningEvents'];guidedCoach?:boolean;guidedLessonId?:string;coachMessages?:Message[];guideContext?:string;metrics?:{interruptions:number;transcriptToAudioMs:number[]}};
+type Density = 'hidden'|'hanzi'|'pinyin'|'full';
 
 const HISTORY_KEY = 'hsk-coach.sessions.v1';
 const AGENT_KEY = 'hsk-coach.agent.v1';
@@ -21,15 +25,19 @@ const DENSITY_KEY = 'hsk-coach.density.v1';
 const DEMO_LINE = '你叫什么名字？';
 // The example view also shows a pinned phrase, because that is the feature worth showing.
 const DEMO_PHRASE:Phrase = {hanzi:'我不知道怎么说。', pinyin:'Wǒ bù zhīdào zěnme shuō.', es:'No sé cómo se dice.', context:'Úsala cuando te quedes en blanco. Ella te dará la frase.', beyond:true};
-const DENSITIES:Density[] = ['hanzi','pinyin','full'];
-const DENSITY_LABEL:Record<Density,string> = {hanzi:'汉字', pinyin:'+ pinyin', full:'+ significado'};
+const DENSITIES:Density[] = ['hidden','hanzi','pinyin','full'];
+const DENSITY_LABEL:Record<Density,string> = {hidden:'Texto oculto',hanzi:'汉字', pinyin:'+ pinyin', full:'+ significado'};
 const safeGet = (key:string) => {try{return localStorage.getItem(key) || ''}catch{return ''}};
 const demoRequested = () => {try{return new URLSearchParams(location.search).get('demo')==='1'}catch{return false}};
 
 export default function App() {
-  const [history,setHistory] = useState<Session[]>(() => readHistory(localStorage,HISTORY_KEY));
+  const [history,setHistory] = useState<Session[]>(() => readHistory({getItem:()=>localStorage.getItem(HISTORY_KEY)},HISTORY_KEY));
   const [agentId,setAgentId] = useState(safeGet(AGENT_KEY) || import.meta.env.VITE_ELEVENLABS_AGENT_ID || '');
   const [configOpen,setConfigOpen] = useState(false);
+  const [guided,setGuided] = useState(false);
+  const [personalPhrase,setPersonalPhrase] = useState<Phrase|null>(null);
+  const [resumeRun,setResumeRun] = useState<ReturnType<typeof createRun>|undefined>();
+  const [personalGoal,setPersonalGoal] = useState('');
   const [level,setLevel] = useState(1);
   const [topicId,setTopicId] = useState('introductions');
   const [view,setView] = useState<'practice'|'notebook'>('practice');
@@ -53,11 +61,18 @@ export default function App() {
   const planRef = useRef(plan);
   const closingAt = useRef(0);
   const startLock = useRef(false);
+  const controlMessages = useRef(new Set<string>());
+  const awaitingAudio = useRef(0);
+  const guidedId = useRef<string|undefined>(undefined);
+  const exiting = useRef(false);
+  function sendControl(text:string){if(conversationRef.current.status!=='connected')return;controlMessages.current.add(text);conversationRef.current.sendUserMessage(text)}
+  function saveGuided(value:ReturnType<typeof lessonSession>){if(value.run)guidedId.current=value.id;const previous=historyRef.current.find(s=>s.id===value.id);const coach=session.current?.guidedCoach&&session.current.guidedLessonId===value.id?session.current:undefined;const saved={...previous,...value,metrics:coach?.metrics||previous?.metrics,coachMessages:coach?.messages||previous?.coachMessages,feedback:coach?.feedback||previous?.feedback||[],phrases:coach?.phrases||previous?.phrases};const next=upsertSession(historyRef.current,saved,curriculum.historyLimit) as Session[];historyRef.current=next;setHistory(next);try{localStorage.setItem(HISTORY_KEY,JSON.stringify(next));setStorageError('')}catch{setStorageError('No se pudo guardar la lección. Mantén la pestaña abierta y descarga el cuaderno.')}}
 
   function save(patch:Partial<Session>) {
     if (!session.current) return;
     const updated = {...session.current,...patch,duration:startedAt.current ? Math.max(0,Math.floor((Date.now()-startedAt.current)/1000)) : 0};
     session.current=updated; setActive(updated);
+    if(updated.guidedCoach){const lesson=historyRef.current.find(s=>s.id===updated.guidedLessonId);if(lesson){const next=upsertSession(historyRef.current,{...lesson,metrics:updated.metrics,coachMessages:updated.messages,feedback:updated.feedback,phrases:updated.phrases},curriculum.historyLimit) as Session[];historyRef.current=next;setHistory(next);try{localStorage.setItem(HISTORY_KEY,JSON.stringify(next))}catch{setStorageError('No se pudo guardar la conversación. Descarga el cuaderno.')}}return;}
     if (!updated.messages.length) return;
     const next = upsertSession(historyRef.current,updated,curriculum.historyLimit) as Session[];
     historyRef.current=next; setHistory(next);
@@ -65,12 +80,15 @@ export default function App() {
   }
 
   const conversation = useConversation({
-    onConnect:({conversationId}) => {startedAt.current=Date.now();save({conversationId});setStarting(false)},
+    onConnect:({conversationId}) => {startedAt.current=Date.now();save({conversationId});setStarting(false);if(session.current?.guideContext)conversationRef.current.sendContextualUpdate(session.current.guideContext)},
+    onInterruption:()=>{if(session.current)save({metrics:{interruptions:(session.current.metrics?.interruptions||0)+1,transcriptToAudioMs:session.current.metrics?.transcriptToAudioMs||[]}})},
+    onModeChange:({mode})=>{if(mode==='speaking'&&awaitingAudio.current&&session.current){const delay=Math.max(0,Date.now()-awaitingAudio.current);awaitingAudio.current=0;save({metrics:{interruptions:session.current.metrics?.interruptions||0,transcriptToAudioMs:[...(session.current.metrics?.transcriptToAudioMs||[]),delay]}})}},
     onMessage:({message,role,event_id}) => {
-      if(!session.current || !['user','agent'].includes(role)) return;
+      if(!session.current || session.current.ended || !['user','agent'].includes(role)) return;
       const messages=[...session.current.messages];
       const index=event_id === undefined ? -1 : messages.findIndex(m=>m.eventId===event_id && m.role===role);
-      const item:Message={role:role as Message['role'],text:message,eventId:event_id};
+      const item:Message={role:role as Message['role'],text:message,eventId:event_id,control:role==='user'&&controlMessages.current.has(message),receivedAt:new Date().toISOString()};
+      if(role==='user'&&!item.control)awaitingAudio.current=Date.now();
       if(index>=0) messages[index]=item; else messages.push(item);
       save({messages});
     },
@@ -117,27 +135,27 @@ export default function App() {
   const busy=starting || connected || conversation.status==='connecting';
   const live=connected || starting;
 
-  async function start() {
+  async function start(guideContext?:string) {
     if(startLock.current || busy) return;
     if(!/^agent_[a-zA-Z0-9]+$/.test(agentId.trim())){setConfigOpen(true);setError('Configura un Agent ID válido de ElevenLabs.');return;}
-    startLock.current=true; setStarting(true);setError('');setDemo(false);setClosing(false);setPhrase(null);closingAt.current=0;startedAt.current=0;
+    exiting.current=false;awaitingAudio.current=0;controlMessages.current.clear();startLock.current=true; setStarting(true);setError('');setDemo(false);setClosing(false);setPhrase(null);closingAt.current=0;startedAt.current=0;
     planRef.current=plan;
-    session.current={id:crypto.randomUUID(),date:new Date().toISOString(),level,topic:plan.topic.title,mode,duration:0,messages:[],feedback:[],practiced:[],phrases:[],ended:false};
+    session.current={id:crypto.randomUUID(),date:new Date().toISOString(),level,topic:plan.topic.title,mode:guideContext?'voice':mode,duration:0,messages:[],feedback:[],practiced:[],phrases:[],ended:false,guidedCoach:!!guideContext,guidedLessonId:guideContext?guidedId.current:undefined,guideContext,metrics:{interruptions:0,transcriptToAudioMs:[]}};
     setActive(session.current);
     try {
-      await conversation.startSession({agentId:agentId.trim(),connectionType:mode==='text'?'websocket':'webrtc',textOnly:mode==='text',dynamicVariables:{
-        hsk_level:level, topic:plan.topic.title, session_minutes:curriculum.sessionMinutes,
+      await conversation.startSession({agentId:agentId.trim(),connectionType:!guideContext&&mode==='text'?'websocket':'webrtc',textOnly:!guideContext&&mode==='text',dynamicVariables:{
+        hsk_level:level, topic:plan.topic.title+(personalGoal?' · Interés del estudiante: '+personalGoal:''), session_minutes:curriculum.sessionMinutes,
         allowed_vocabulary:JSON.stringify(plan.allowed), new_words:JSON.stringify(plan.targets),
         review_words:JSON.stringify(plan.review), previous_recommendation:history.find(s=>s.summary)?.summary?.recommendation || 'Primera sesión; no atribuyas conocimientos previos.'
       }});
     }catch{setError(mode==='voice'?'No se inició la conversación. Permite el micrófono y comprueba que el agente esté publicado para este dominio.':'No se inició el chat. Comprueba el Agent ID, los dominios permitidos y la configuración de texto.');save({ended:true});}
     finally{setStarting(false);startLock.current=false;}
   }
-  async function stop() {try{await conversation.endSession()}catch{setError('La conexión no se cerró normalmente.')}finally{save({ended:true});setClosing(false);setStarting(false);startLock.current=false;}}
+  async function stop() {if(exiting.current)return;exiting.current=true;try{await conversation.endSession()}catch{setError('La conexión no se cerró normalmente.')}finally{save({ended:true});setClosing(false);setStarting(false);startLock.current=false;}}
   function requestSummary() {
     if(!connected || closingAt.current) return;
     setClosing(true);closingAt.current=Date.now();
-    conversation.sendUserMessage('Terminemos la sesión. Resume únicamente lo que realmente practicamos, registra el resumen con record_learning y dame una tarea breve. Si no hicimos el miniquiz, marca completed=false.');
+    sendControl('Terminemos la sesión. Resume únicamente lo que realmente practicamos, registra el resumen con record_learning y dame una tarea breve. Si no hicimos el miniquiz, marca completed=false.');
   }
   // The clock still runs the session; it just no longer sits on screen counting at you.
   useEffect(()=>{
@@ -145,7 +163,7 @@ export default function App() {
     const timer=window.setInterval(()=>{
       const elapsed=Math.floor((Date.now()-startedAt.current)/1000);
       if(elapsed>=curriculum.sessionMinutes*60 || (closingAt.current && Date.now()-closingAt.current>=45000)) void stop();
-      else if(elapsed>=(curriculum.sessionMinutes-1)*60 && !closingAt.current) requestSummary();
+      else if(!session.current?.guidedCoach && elapsed>=(curriculum.sessionMinutes-1)*60 && !closingAt.current) requestSummary();
     },500);
     return()=>clearInterval(timer);
   },[connected]);
@@ -167,7 +185,12 @@ export default function App() {
   }
 
   const shown=selected || active;
-  const practiced=[...new Set(history.flatMap(s=>s.practiced))];
+  const progress=deriveProgress(history,curriculum);
+  const due=reviewQueue(history,curriculum,level);
+  const pendingLesson=history.find(s=>s.mode==='guided'&&s.run&&!s.run.ended&&lessonConfig.lessons.some(l=>validRun(s.run,l)));
+  const personalPhrases=[...new Map(history.flatMap(s=>s.phrases||[]).map(p=>[p.hanzi,p])).values()];
+  if(personalPhrase)return <PhrasePractice phrase={personalPhrase} onClose={()=>setPersonalPhrase(null)} onSave={saveGuided}/>;
+  if(guided)return <><GuidedLesson resume={resumeRun} onSave={saveGuided} onClose={()=>{setGuided(false);setResumeRun(undefined)}} coach={{phrase:phrase?<PhraseCard phrase={phrase} onClose={()=>setPhrase(null)}/>:undefined,phraseText:phrase?.hanzi,connected,starting,speaking:conversation.isSpeaking,muted:conversation.isMuted,messages:active?.messages||[],feedback:active?.feedback||[],error,start:context=>{setMode('voice');void start(context)},stop:()=>void stop(),context:text=>{if(connected)conversation.sendContextualUpdate(text)},mute:()=>conversation.setMuted(!conversation.isMuted),getLevel}}/>{storageError&&<p role="alert" className="error">{storageError} <button className="text-button" onClick={exportNotebook}>Descargar cuaderno</button></p>}{configOpen&&<Config agentId={agentId} setAgentId={setAgentId} busy={busy} onError={setError} onClose={()=>setConfigOpen(false)}/>}</>;
   const visibleWords:Word[]=plan.allowed.filter((w:Word)=>plan.topic.words.includes(w.hanzi));
   const lastAgentLine=demo ? DEMO_LINE : (active?.messages.filter(m=>m.role==='agent').at(-1)?.text ?? '');
   // The subtitle holds until the next line replaces it. Nothing fades out from under you.
@@ -187,17 +210,19 @@ export default function App() {
     <button className="room-exit" aria-label="Terminar la sesión" onClick={()=>{if(demo&&!active){setDemo(false);return}void stop()}}><X size={20}/></button>
     <div className="room-orb"><Gradient state={demo?'speaking':orbState} getLevel={getLevel} size={compact?(phrase?200:258):(phrase?300:380)}/></div>
     {caption && <p className="room-caption">{caption}</p>}
-    {subtitle.length>0 && <Subtitle tokens={subtitle} density={density} size={subtitleSize}/>}
+    {density!=='hidden' && subtitle.length>0 && <Subtitle tokens={subtitle} density={density} size={subtitleSize}/>}
     {density==='full' && subtitle.some(t=>t.es) && <p className="room-gloss">Significado palabra por palabra, no una traducción literal.</p>}
     {error && <p role="alert" className="room-error">{error}</p>}
+    {active?.feedback.at(-1)&&<div className="live-feedback"><FeedbackCard feedback={active.feedback.at(-1)!}/></div>}
     {phrase && <PhraseCard phrase={phrase} onClose={()=>setPhrase(null)}/>}
     <div className="room-controls">
       {subtitle.some(t=>t.hanzi) && <button className="ghost" onClick={cycleDensity} aria-label="Cambiar el detalle de los subtítulos">{DENSITY_LABEL[density]}</button>}
       {connected && mode==='voice' && <button className="ghost" onClick={()=>conversation.setMuted(!conversation.isMuted)}>{conversation.isMuted?<MicOff size={16}/>:<Mic size={16}/>} {conversation.isMuted?'Activar':'Silenciar'}</button>}
+      {connected&&<><button className="ghost" disabled={conversation.isSpeaking||closing} onClick={()=>sendControl('Repite exactamente tu última frase, sin cambiar palabras y sin añadir otra pregunta.')}>Repetir</button><button className="ghost" disabled={conversation.isSpeaking||closing} onClick={()=>sendControl('Repite esa misma frase más despacio. Después espera mi respuesta.')}>Más lento</button><button className="ghost" disabled={closing} onClick={()=>sendControl('Necesito una pista breve en español. No me des todavía la respuesta completa.')}>Pedir pista</button></>}
       {connected && <button className="ghost" disabled={closing} onClick={requestSummary}><Check size={16}/> Terminar</button>}
       {demo && !active && <button className="ghost" onClick={()=>setDemo(false)}>Cerrar el ejemplo</button>}
     </div>
-    {connected && mode==='text' && <form onSubmit={sendText} className="room-input"><input aria-label="Tu respuesta" placeholder="Escribe en español o mandarín…" value={text} onChange={e=>{setText(e.target.value);conversation.sendUserActivity()}} maxLength={1000}/><button className="icon-button" aria-label="Enviar" disabled={!text.trim()}><ArrowRight size={18}/></button></form>}
+    {connected && <form onSubmit={sendText} className="room-input"><input aria-label="Tu respuesta" placeholder="Escribe en español o mandarín…" value={text} onChange={e=>{setText(e.target.value);conversation.sendUserActivity()}} maxLength={1000}/><button className="icon-button" aria-label="Enviar" disabled={!text.trim()}><ArrowRight size={18}/></button></form>}
   </div>;
 
   // ── Everything else: choosing a session, and the notebook. ──
@@ -213,13 +238,17 @@ export default function App() {
       {view==='practice' ? <section className="start">
         <div className="start-orb"><Gradient state="idle" getLevel={getLevel} size={compact?168:208}/></div>
         <h1>Un poco, <em>cada día.</em></h1>
-        <p className="start-copy">Diez minutos de conversación. Si no sabes decir algo, pregúntaselo — te dará la frase y la dejará escrita.</p>
+        <p className="start-copy">Una lección, una frase que puedas usar. Empieza con bebidas, retira las pistas y vuelve a intentarlo otro día.</p>
+        <div className="guided-entry"><span className="eyebrow">Práctica guiada · HSK 1 · 10 min orientativos</span><h2>¿Agua o té?</h2><p>Escucha, construye tu respuesta y comprueba qué recuerdas. Puedes escribir y conectar la profesora por voz.</p><button className="primary" onClick={()=>{setError('');setLevel(1);setTopicId('food');setResumeRun(pendingLesson?.run);setGuided(true)}}>{pendingLesson?'Continuar mi lección':'Empezar mi lección'} <ArrowRight size={17}/></button><small>Audio del navegador y práctica escrita sin créditos. La conversación de ElevenLabs se conecta cuando tú lo eliges.</small></div>
+        {due.length>0&&<p className="review-note">{due.length} palabras pendientes de repaso. Volver a verlas no significa que ya las domines.</p>}
+        <p className="eyebrow">Conversación libre</p>
         <div className="start-picks">
           <label>Nivel<select aria-label="Nivel HSK" value={level} onChange={e=>{setLevel(Number(e.target.value));setTopicId('introductions')}}>{curriculum.levels.map(l=><option key={l.id} value={l.id}>{l.label}</option>)}</select></label>
           <label>Tema<select aria-label="Tema de hoy" value={topicId} onChange={e=>setTopicId(e.target.value)}>{curriculum.topics.filter(t=>(t.minLevel || 1)<=level).map(t=><option value={t.id} key={t.id}>{t.title}</option>)}</select></label>
           <label>Modo<select aria-label="Modo" value={mode} onChange={e=>setMode(e.target.value as 'voice'|'text')}><option value="voice">Voz</option><option value="text">Texto</option></select></label>
         </div>
-        <button className="primary" disabled={busy} onClick={()=>void start()}>{agentId?'Empezar':'Conectar ElevenLabs'} <ArrowRight size={17}/></button>
+        <label className="personal-goal">Algo que te gustaría practicar<input value={personalGoal} maxLength={180} placeholder="Por ejemplo, hablar de mi trabajo" onChange={e=>setPersonalGoal(e.target.value)}/></label>
+        <button className="primary" disabled={busy} onClick={()=>void start()}>{agentId?'Conversar con mi profesora':'Conectar ElevenLabs'} <ArrowRight size={17}/></button>
         <p className="microcopy">{agentId?'La sesión usa créditos de ElevenLabs.':'Configura tu agente para conversar.'} {mode==='voice'?'Tu voz se envía a ElevenLabs.':'Tus mensajes se envían a ElevenLabs.'}</p>
         {error && <p role="alert" className="error">{error}</p>}
         <div className="start-words"><span>Hoy</span>{visibleWords.map(w=><i key={w.hanzi}><b lang="zh">{w.hanzi}</b> {w.pinyin}</i>)}</div>
@@ -227,10 +256,12 @@ export default function App() {
         {active?.ended && active.messages.length>0 && <div className="after"><SessionDetail session={active}/></div>}
       </section> : <section className="notebook">
         <div className="notebook-head"><h1>Mi <em>cuaderno.</em></h1><button className="ghost" disabled={!history.length} onClick={exportNotebook}><Download size={16}/> Descargar</button></div>
-        <p className="start-copy">{history.length} sesiones · {practiced.length} palabras practicadas</p>
+        <p className="start-copy">{history.length} sesiones · {Object.values(progress).filter(p=>p.successfulReviews>0).length} palabras usadas sin modelo en ejercicios</p>
         {selected ? <div className="notebook-detail"><button className="text-button" onClick={()=>setSelected(null)}><ArrowLeft size={14}/> Todas las sesiones</button><SessionDetail session={shown!}/><details><summary>Transcripción completa</summary>{selected.messages.map((m,i)=><div className="line" key={i}><span>{m.role==='user'?'TÚ':'PROFESORA'}</span><p>{m.text}</p></div>)}</details></div>
         : history.length ? <div className="session-list">{history.map(s=><button key={s.id} onClick={()=>setSelected(s)}><span className="date">{new Date(s.date).toLocaleDateString('es',{day:'2-digit',month:'short'})}</span><span><b>{s.topic}</b><small>HSK {s.level} · {s.summary?.completed?'Completada':'Parcial'}</small></span><span className="count-words">{s.practiced.length}</span><ArrowRight size={18}/></button>)}</div>
         : <div className="empty"><BookOpen size={32}/><p>La primera página está por escribir.</p><button className="primary" onClick={()=>setView('practice')}>Ir a mi práctica <ArrowRight size={16}/></button></div>}
+        {personalPhrases.length>0&&<div className="personal-phrases"><h2>Frases que pediste</h2><p className="microcopy">Tu repertorio personal. Se practica aparte del progreso HSK.</p>{personalPhrases.map(p=><button className="personal-phrase" key={p.hanzi} onClick={()=>setPersonalPhrase(p)}><span lang="zh">{p.hanzi}</span><small>{p.es}</small><span>Practicar →</span></button>)}</div>}
+        <div className="progress-list">{Object.values(progress).map(p=><p key={p.word}><b lang="zh">{p.word}</b><span>{p.successfulReviews>=2?'Recuperada en días distintos':p.stage==='independent'?'Usada sin modelo':p.stage==='recognized'?'Reconocida':p.stage==='repeated'?'Repetida con apoyo':p.stage==='observed'?'En tu transcripción':'Escuchada'}</span><small>{p.nextDue<=Date.now()?'Repaso pendiente':'Repasar '+new Date(p.nextDue).toLocaleDateString('es',{day:'numeric',month:'short'})} · {p.modality==='text'?'por escrito':p.modality==='transcript'?'transcripción, sin evaluar tonos':p.modality==='reading'?'lectura':p.modality==='listening'?'escucha':'exposición'}</small></p>)}</div>
         <p className="microcopy">Tu cuaderno se guarda en este navegador. No se sincroniza entre dispositivos.</p>
       </section>}
       {storageError && <p role="alert" className="error">{storageError} <button className="text-button" onClick={exportNotebook}>Descargar</button></p>}
@@ -270,9 +301,9 @@ function FeedbackCard({feedback}:{feedback:Feedback}) {
 }
 
 function SessionDetail({session}:{session:Session}) {
-  return <><h2>{session.topic}</h2>{session.summary ? <div className="summary">
+  return <><h2>{session.topic}</h2>{session.mode==='guided'&&session.run&&<div className="attempt-list">{session.run.attempts.map((a,i)=><p key={i}><b>{a.text}</b><small>{a.correct?'Coincide con el ejercicio':'Necesitó otro intento'} · {a.assisted?'con apoyo':'sin modelo visible'} · {a.modality==='transcript'?'transcripción de voz':a.modality==='text'?'por escrito':a.modality}</small></p>)}</div>}{session.metrics&&<details><summary>Datos de conversación</summary><p>{session.metrics.interruptions} eventos de interrupción. {session.metrics.transcriptToAudioMs.length} muestras de transcripción a audio.</p><p className="microcopy">Tiempos: {session.metrics.transcriptToAudioMs.join(', ')||'sin datos'} ms. Es una aproximación desde la transcripción recibida, no latencia acústica medida.</p></details>}{session.feedback.length>0&&<details><summary>Frases y correcciones registradas</summary>{session.feedback.map((f,i)=><FeedbackCard key={i} feedback={f}/>)}</details>}{session.summary ? <div className="summary">
     <div><h3>Vocabulario practicado</h3><p lang="zh">{session.summary.practiced.join(' · ') || 'Sin palabras registradas.'}</p><h3>Correcciones</h3>{session.summary.errors.length?session.summary.errors.map((f,i)=><FeedbackCard key={i} feedback={f}/>):<p>No se registraron errores con evidencia. Esto no equivale a una evaluación de pronunciación.</p>}</div>
-    <div><h3>La próxima vez</h3><p>{session.summary.recommendation}</p><h3>Tu tarea</h3><p>{session.summary.homework}</p>{session.phrases && session.phrases.length>0 && <><h3>Frases que pediste</h3>{session.phrases.map((p,i)=><p key={i}><b lang="zh">{p.hanzi}</b> — {p.es}</p>)}</>}<small>{session.summary.completed?'Flujo completo según la profesora.':'Sesión parcial; quedan actividades por completar.'}</small></div>
+    <div><h3>La próxima vez</h3><p>{session.summary.recommendation}</p><h3>Tu tarea</h3><p>{session.summary.homework}</p>{session.phrases && session.phrases.length>0 && <><h3>Frases que pediste</h3>{session.phrases.map((p,i)=><p key={i}><b lang="zh">{p.hanzi}</b> — {p.es}</p>)}</>}<small>{session.mode==='guided'&&session.summary.completed?'Ejercicios de la lección completados. No certifica pronunciación.':'Conversación registrada; no certifica dominio ni realización de un quiz.'}</small></div>
   </div> : <p>Transcripción guardada. La profesora no envió un resumen válido antes de la desconexión; no se atribuye progreso ni vocabulario.</p>}</>;
 }
 

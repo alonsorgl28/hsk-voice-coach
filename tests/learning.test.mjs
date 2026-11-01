@@ -13,9 +13,9 @@ test('every topic has eligible words and no more than five new targets',()=>{
   for(const word of p.topic.words)assert.ok(p.allowed.some(w=>w.hanzi===word));
  }
 });
-test('review comes only from real history and excludes words above selected level',()=>{
+test('unverified historical mentions do not remove new targets or invent review',()=>{
  const p=makePlan(curriculum,1,'introductions',[{mode:'voice',practiced:['叫','名字','人','车站']},{mode:'demo',practiced:['中国']}]);
- assert.deepEqual(p.review,['叫','名字','人']);assert.deepEqual(p.targets,['中国','学生']);
+ assert.deepEqual(p.review,[]);assert.deepEqual(p.targets,['叫','名字','人','中国','学生']);
 });
 test('Chinese segmentation rejects advanced vocabulary and accepts allowed compounds',()=>{
  const words=plan.allowed.map(w=>w.hanzi);

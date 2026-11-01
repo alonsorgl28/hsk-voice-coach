@@ -1,0 +1,133 @@
+{
+  "defaultLesson": "drinks",
+  "browserVoiceRate": 0.85,
+  "browserVoiceSlowRate": 0.65,
+  "lessons": [
+    {
+      "id": "drinks",
+      "level": 1,
+      "topicId": "food",
+      "title": "¿Agua o té?",
+      "objective": "Entender qué bebes y responder con una frase propia.",
+      "words": [
+        "喝",
+        "水",
+        "茶"
+      ],
+      "steps": [
+        {
+          "id": "recall",
+          "label": "Recordar",
+          "minutes": 1,
+          "kind": "recall",
+          "prompt": "¿Cómo dirías «Yo bebo agua»?",
+          "audio": "我喝水。",
+          "pinyin": "Wǒ hē shuǐ.",
+          "meaning": "Yo bebo agua.",
+          "answers": [
+            "我喝水"
+          ],
+          "hints": [
+            "Empieza por 我 (wǒ): yo.",
+            "Yo bebo… se dice 我喝… (wǒ hē…)."
+          ],
+          "allowSkip": true
+        },
+        {
+          "id": "listen",
+          "label": "Escuchar",
+          "minutes": 2,
+          "kind": "listen",
+          "prompt": "Escucha la pregunta. ¿Qué quiere saber?",
+          "audio": "你喝什么？",
+          "pinyin": "Nǐ hē shénme?",
+          "meaning": "¿Qué bebes?",
+          "answers": [
+            "Qué bebo"
+          ],
+          "choices": [
+            "Mi nombre",
+            "Qué bebo",
+            "Dónde vivo"
+          ],
+          "hints": [
+            "喝 (hē) significa beber."
+          ],
+          "words": [
+            "喝"
+          ]
+        },
+        {
+          "id": "practice",
+          "label": "Practicar",
+          "minutes": 2,
+          "kind": "practice",
+          "prompt": "Escucha, repite y escribe «Yo bebo agua».",
+          "audio": "我喝水。",
+          "pinyin": "Wǒ hē shuǐ.",
+          "meaning": "Yo bebo agua.",
+          "answers": [
+            "我喝水"
+          ],
+          "hints": [
+            "Conserva el orden: yo + beber + agua."
+          ]
+        },
+        {
+          "id": "talk",
+          "label": "Conversar",
+          "minutes": 3,
+          "kind": "talk",
+          "prompt": "Responde si bebes té. Puedes decir que sí o que no.",
+          "audio": "你喝茶吗？",
+          "pinyin": "Nǐ hē chá ma?",
+          "meaning": "¿Bebes té?",
+          "answers": [
+            "我喝茶",
+            "我不喝茶"
+          ],
+          "hints": [
+            "Puedes afirmar o negar la pregunta.",
+            "Empieza por 我喝… o 我不喝…"
+          ],
+          "model": "我不喝茶。",
+          "modelPinyin": "Wǒ bù hē chá.",
+          "modelMeaning": "No bebo té."
+        },
+        {
+          "id": "check",
+          "label": "Comprobar",
+          "minutes": 2,
+          "kind": "check",
+          "prompt": "Sin mirar: di que bebes té.",
+          "audio": "我喝茶。",
+          "pinyin": "Wǒ hē chá.",
+          "meaning": "Yo bebo té.",
+          "answers": [
+            "我喝茶"
+          ],
+          "hints": [
+            "Usa el mismo patrón que con agua.",
+            "Yo bebo…: 我喝…"
+          ]
+        }
+      ]
+    }
+  ],
+  "toneExercise": {
+    "title": "Distinguir hē y hé",
+    "prompt": "Escucha una palabra y elige cuál oíste.",
+    "choices": [
+      {
+        "hanzi": "喝",
+        "pinyin": "hē",
+        "es": "beber"
+      },
+      {
+        "hanzi": "和",
+        "pinyin": "hé",
+        "es": "y; con"
+      }
+    ]
+  }
+}

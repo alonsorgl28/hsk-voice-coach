@@ -18,19 +18,14 @@ con más fiabilidad en inglés, aunque el agente hable en mandarín y español.
 
 | Campo | Valor |
 |---|---|
-| Agent language | **Spanish** para HSK 1 (ver nota abajo) |
-| Additional languages | Chinese (Mandarin) |
-| Voice | Una voz femenina con soporte de mandarín. `Xiaoyin` o similar funciona bien. |
-| First message | *(vacío)* — el prompt ya define el saludo |
+| Agent language | Chinese (mantener como base del ejercicio) |
+| Additional languages | Spanish para explicaciones |
+| Voice | Yun - Elegant, Sweet and Gentle; velocidad 0.9 |
+| First message | `你好！ Soy tu profesora de mandarín con IA. Te escucho.` |
 
-Baja la velocidad de la voz si suena rápida para nivel principiante.
+En Advanced → Conversational behavior: **Patient**, **Take turn after silence: 15 segundos**, Turn V3 y Scribe v2 Realtime. La voz y el reconocimiento bilingüe requieren pruebas reales: elegir un idioma adicional no garantiza transcripción correcta de todas las alternancias entre español y mandarín.
 
-> **Qué idioma poner como principal.** El idioma del agente decide con qué modelo se
-> transcribe **tu** voz. En HSK 1 vas a hablar sobre todo en español — preguntas,
-> dudas, "volvamos al comienzo" — así que con el reconocimiento en mandarín esas frases
-> se transcriben mal y la profesora responde a algo que no dijiste. Pon **español** como
-> principal y mandarín como adicional; cuando ya formes frases largas en chino,
-> inviértelo.
+Los ajustes deseados están documentados en `src/curriculum.json → conversationSettings`; por tratarse de un cliente sin credenciales, editar el JSON no modifica el agente remoto. Aplícalos en el dashboard y publica la versión. Conserva `interruption` entre los eventos de cliente para las métricas locales.
 
 ## 4. Variables dinámicas
 
@@ -91,7 +86,7 @@ En **Security**:
 
 - Deja el agente como **público** (sin autenticación). Es lo que permite que la app
   funcione sin backend.
-- En **Allowlist**, añade los dominios donde vaya a correr: `localhost` para desarrollo y
+- En **Allowlist**, añade los dominios donde vaya a correr: el host de loopback autorizado con su puerto para desarrollo y
   el dominio de producción.
 
 ## 7. Conectar la app
