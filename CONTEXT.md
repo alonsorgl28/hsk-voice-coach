@@ -6,7 +6,7 @@ Actualizado: 2026-11-01 (noche). Rama de implementación y entrega: `feat/guided
 
 ElevenLabs: el prompt del curso y la herramienta `show_line` (`tool_9201m6cx8zfae6e8yjd9pcv1scrb`) están en la rama `curso-libro-principiante` (`agtbrch_3701m6cxaeqze7dra9bz147vd9xs`, 0 % de tráfico). Main sigue con el prompt anterior; publicar la rama requiere la aprobación de Alonso (el cambio directo en Main fue bloqueado por permisos). Observado: una conversación desde 127.0.0.1:4173 conectó pese al allowlist.
 
-Sin commit ni deploy de esta entrega.
+Commit `efc38a4` en `feat/guided-learning` (push hecho, sin merge a `main`). Desplegado en producción el 2026-11-01 con `vercel --prod`: https://hsk-voice-coach.vercel.app (comprobado: ruta del libro y lección 1 cargan, sin errores de consola). La web en producción usa el prompt anterior de Main hasta publicar la rama de ElevenLabs.
 
 ## Estado anterior (31 oct – 1 nov, antes del curso)
 
