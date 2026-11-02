@@ -80,6 +80,22 @@ A diferencia de `record_learning`, esta herramienta **sí acepta vocabulario fue
 nivel** — es justo lo que el estudiante está pidiendo. La app marca esas frases como
 fuera de nivel y no las cuenta como vocabulario practicado.
 
+## 5c. Herramienta de cliente `show_line` (curso del libro)
+
+Subtítulo estructurado: antes de decir una frase en chino que no esté entre las frases revisadas del paso, la profesora envía su pinyin y su traducción natural. Así la pantalla nunca muestra caracteres sin pinyin ni significado. Creada el 1 de noviembre de 2026 como `tool_9201m6cx8zfae6e8yjd9pcv1scrb`.
+
+| Campo | Valor |
+|---|---|
+| Name | `show_line` |
+| Wait for response | **No** (no bloquea la conversación) |
+| Pre-tool speech | Off |
+
+| Parámetro | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `payload` | String | Sí | `{"hanzi":"…","pinyin":"…","es":"…"}` serializado. |
+
+Las frases revisadas del curso (`src/course.json`) se subtitulan en la app sin llamar a la herramienta. El contexto de cada paso (lección, paso, respuesta esperada, apoyo visible, frases revisadas) llega como *contextual update* desde `coachContext()` en `src/course.mjs`.
+
 ## 6. Seguridad y dominios
 
 En **Security**:

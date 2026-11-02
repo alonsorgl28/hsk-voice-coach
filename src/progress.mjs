@@ -27,14 +27,20 @@ export function deriveProgress(history, curriculum, now=Date.now()) {
         entries.push({word,stage:'observed',at:session.date,modality:session.mode==='text'?'text':'transcript'});
     }
     for(const event of Array.isArray(session.learningEvents)?session.learningEvents:[]) {
-      if(!event||event.scope==='personal'||!Array.isArray(event.words)||!['exposed','recognized','repeated','independent','needs_review'].includes(event.stage)||!Number.isFinite(Date.parse(event.at))) continue;
+      // Book-course evidence belongs to another framework (HSK 2009) and is scheduled per phrase in course.mjs.
+      if(!event||event.scope==='personal'||event.scope==='course'||!Array.isArray(event.words)||!['exposed','recognized','repeated','independent','needs_review'].includes(event.stage)||!Number.isFinite(Date.parse(event.at))) continue;
       for(const word of event.words || []) if(curriculum.words.some(w=>w.hanzi===word)) entries.push({...event,word});
     }
   }
+  return scheduleEntries(entries,curriculum.reviewIntervalsDays,now);
+}
+// Shared spaced-review scheduler. Entries: {word,stage,at,modality}; "word" can be any stable key.
+export function scheduleEntries(entries,reviewIntervalsDays,now=Date.now()) {
+  const curriculum={reviewIntervalsDays};
   /** @type {Record<string, WordProgress>} */
   const progress={};
   const rank={exposed:0,observed:1,recognized:2,repeated:3,independent:4};
-  for(const e of entries.sort((a,b)=>Date.parse(a.at)-Date.parse(b.at))) {
+  for(const e of [...entries].sort((a,b)=>Date.parse(a.at)-Date.parse(b.at))) {
     const at=Date.parse(e.at);if(!Number.isFinite(at)||at>now)continue;
     const p=progress[e.word] || {word:e.word,stage:'exposed',successfulReviews:0,nextDue:at,lastSeen:at,modality:e.modality||'unknown'};
     if(e.stage==='needs_review'){p.nextDue=at;p.successfulReviews=0;p.lastIndependent=undefined;}

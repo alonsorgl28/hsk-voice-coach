@@ -7,6 +7,9 @@ import { glossChinese } from './subtitles.mjs';
 import Gradient, { type OrbState } from './Gradient';
 import GuidedLesson from './GuidedLesson';
 import PhrasePractice from './PhrasePractice';
+import CourseLesson, {course, type Lesson as CourseLessonData} from './CourseLesson';
+import CoursePath, {CourseGoals} from './CoursePath';
+import {validateCaption, captionKey, reviewLesson, wordsUpTo} from './course.mjs';
 import lessonConfig from './lessons.json';
 import {deriveProgress, reviewQueue, validRun, type createRun, type lessonSession} from './progress.mjs';
 
@@ -16,7 +19,7 @@ type Feedback = {kind:'lesson'|'correction'; hanzi:string; pinyin:string; explan
 type Summary = {kind:'summary'; practiced:string[]; errors:Feedback[]; recommendation:string; homework:string; completed:boolean};
 type Phrase = {hanzi:string; pinyin:string; es:string; context:string; beyond:boolean};
 type Token = {hanzi?:string; pinyin?:string; es?:string; text?:string};
-type Session = {id:string; conversationId?:string; date:string; level:number; topic:string; mode:'voice'|'text'|'guided'; duration:number; messages:Message[]; feedback:Feedback[]; practiced:string[]; phrases?:Phrase[]; summary?:Summary; ended:boolean;run?:ReturnType<typeof createRun>;learningEvents?:ReturnType<typeof lessonSession>['learningEvents'];guidedCoach?:boolean;guidedLessonId?:string;coachMessages?:Message[];guideContext?:string;metrics?:{interruptions:number;transcriptToAudioMs:number[]}};
+type Session = {id:string; conversationId?:string; date:string; level:number; topic:string; mode:'voice'|'text'|'guided'; duration:number; messages:Message[]; feedback:Feedback[]; practiced:string[]; phrases?:Phrase[]; summary?:Summary; ended:boolean;run?:ReturnType<typeof createRun>;learningEvents?:ReturnType<typeof lessonSession>['learningEvents'];guidedCoach?:boolean;guidedLessonId?:string;coachMessages?:Message[];guideContext?:string;maxMinutes?:number;metrics?:{interruptions:number;transcriptToAudioMs:number[]}};
 type Density = 'hidden'|'hanzi'|'pinyin'|'full';
 
 const HISTORY_KEY = 'hsk-coach.sessions.v1';
@@ -37,6 +40,10 @@ export default function App() {
   const [guided,setGuided] = useState(false);
   const [personalPhrase,setPersonalPhrase] = useState<Phrase|null>(null);
   const [resumeRun,setResumeRun] = useState<ReturnType<typeof createRun>|undefined>();
+  // The book course: which lesson is open (or its review), and the run to resume.
+  const [courseOpen,setCourseOpen] = useState<{lesson:CourseLessonData;resume?:unknown}|null>(null);
+  // Structured captions sent by the teacher (show_line): pinyin + Spanish for lines outside the reviewed phrases.
+  const [captions,setCaptions] = useState(()=>new Map<string,{hanzi:string;pinyin:string;es:string}>());
   const [personalGoal,setPersonalGoal] = useState('');
   const [level,setLevel] = useState(1);
   const [topicId,setTopicId] = useState('introductions');
@@ -121,6 +128,15 @@ export default function App() {
           save({phrases:[...(session.current.phrases ?? []),result]});
           return 'OK: pinned on screen. Say it once, then ask the student to repeat it.';
         }catch(e){return `ERROR: ${e instanceof Error ? e.message : 'Invalid payload'}. Retry with hanzi, pinyin and es.`;}
+      },
+      // Caption contract: before saying a Chinese sentence that is not a reviewed phrase, the teacher sends
+      // its pinyin and natural Spanish meaning, so the screen never shows characters alone.
+      show_line:({payload}) => {
+        try{
+          const line=validateCaption(payload);
+          setCaptions(previous=>new Map(previous).set(captionKey(line.hanzi),line));
+          return 'OK';
+        }catch(e){return `ERROR: ${e instanceof Error ? e.message : 'Invalid payload'}. Send hanzi, pinyin and es.`;}
       }
     }
   });
@@ -135,18 +151,20 @@ export default function App() {
   const busy=starting || connected || conversation.status==='connecting';
   const live=connected || starting;
 
-  async function start(guideContext?:string) {
+  type StartOptions={topic:string;allowed:Word[];targets:string[];maxMinutes:number};
+  async function start(guideContext?:string,options?:StartOptions) {
     if(startLock.current || busy) return;
     if(!/^agent_[a-zA-Z0-9]+$/.test(agentId.trim())){setConfigOpen(true);setError('Configura un Agent ID válido de ElevenLabs.');return;}
     exiting.current=false;awaitingAudio.current=0;controlMessages.current.clear();startLock.current=true; setStarting(true);setError('');setDemo(false);setClosing(false);setPhrase(null);closingAt.current=0;startedAt.current=0;
-    planRef.current=plan;
-    session.current={id:crypto.randomUUID(),date:new Date().toISOString(),level,topic:plan.topic.title,mode:guideContext?'voice':mode,duration:0,messages:[],feedback:[],practiced:[],phrases:[],ended:false,guidedCoach:!!guideContext,guidedLessonId:guideContext?guidedId.current:undefined,guideContext,metrics:{interruptions:0,transcriptToAudioMs:[]}};
+    const sessionPlan=options?{...plan,topic:{...plan.topic,title:options.topic},review:[],targets:options.targets,allowed:options.allowed}:plan;
+    planRef.current=sessionPlan;setCaptions(new Map());
+    session.current={id:crypto.randomUUID(),date:new Date().toISOString(),level,topic:sessionPlan.topic.title,mode:guideContext?'voice':mode,duration:0,messages:[],feedback:[],practiced:[],phrases:[],ended:false,guidedCoach:!!guideContext,guidedLessonId:guideContext?guidedId.current:undefined,guideContext,maxMinutes:options?.maxMinutes,metrics:{interruptions:0,transcriptToAudioMs:[]}};
     setActive(session.current);
     try {
       await conversation.startSession({agentId:agentId.trim(),connectionType:!guideContext&&mode==='text'?'websocket':'webrtc',textOnly:!guideContext&&mode==='text',dynamicVariables:{
-        hsk_level:level, topic:plan.topic.title+(personalGoal?' · Interés del estudiante: '+personalGoal:''), session_minutes:curriculum.sessionMinutes,
-        allowed_vocabulary:JSON.stringify(plan.allowed), new_words:JSON.stringify(plan.targets),
-        review_words:JSON.stringify(plan.review), previous_recommendation:history.find(s=>s.summary)?.summary?.recommendation || 'Primera sesión; no atribuyas conocimientos previos.'
+        hsk_level:level, topic:sessionPlan.topic.title+(personalGoal&&!options?' · Interés del estudiante: '+personalGoal:''), session_minutes:options?.maxMinutes||curriculum.sessionMinutes,
+        allowed_vocabulary:JSON.stringify(sessionPlan.allowed), new_words:JSON.stringify(sessionPlan.targets),
+        review_words:JSON.stringify(sessionPlan.review), previous_recommendation:history.find(s=>s.summary)?.summary?.recommendation || 'Primera sesión; no atribuyas conocimientos previos.'
       }});
     }catch{setError(mode==='voice'?'No se inició la conversación. Permite el micrófono y comprueba que el agente esté publicado para este dominio.':'No se inició el chat. Comprueba el Agent ID, los dominios permitidos y la configuración de texto.');save({ended:true});}
     finally{setStarting(false);startLock.current=false;}
@@ -162,7 +180,7 @@ export default function App() {
     if(!connected) return;
     const timer=window.setInterval(()=>{
       const elapsed=Math.floor((Date.now()-startedAt.current)/1000);
-      if(elapsed>=curriculum.sessionMinutes*60 || (closingAt.current && Date.now()-closingAt.current>=45000)) void stop();
+      if(elapsed>=(session.current?.maxMinutes||curriculum.sessionMinutes)*60 || (closingAt.current && Date.now()-closingAt.current>=45000)) void stop();
       else if(!session.current?.guidedCoach && elapsed>=(curriculum.sessionMinutes-1)*60 && !closingAt.current) requestSummary();
     },500);
     return()=>clearInterval(timer);
@@ -189,6 +207,20 @@ export default function App() {
   const due=reviewQueue(history,curriculum,level);
   const pendingLesson=history.find(s=>s.mode==='guided'&&s.run&&!s.run.ended&&lessonConfig.lessons.some(l=>validRun(s.run,l)));
   const personalPhrases=[...new Map(history.flatMap(s=>s.phrases||[]).map(p=>[p.hanzi,p])).values()];
+  function openCourse(lesson:CourseLessonData,kind:'lesson'|'review',resume?:unknown){setError('');setCourseOpen({lesson:kind==='review'?reviewLesson(lesson) as CourseLessonData:lesson,resume});}
+  if(courseOpen){
+    const base=course.lessons.find(l=>l.id===courseOpen.lesson.id.replace(/\.review$/,'')) as CourseLessonData;
+    const nextLesson=course.lessons.find(l=>l.number===base.number+1&&l.status==='available') as CourseLessonData|undefined;
+    const startOptions={topic:`${course.title} · Lección ${base.number}: ${base.title.pinyin} (${base.title.es})`,maxMinutes:course.voiceMinutes,targets:base.words.map(w=>w.hanzi),
+      allowed:[...wordsUpTo(course,base).map((w:{hanzi:string;pinyin:string;es:string})=>({...w,level:1})),...curriculum.words.filter(w=>curriculum.foundation.includes(w.hanzi)),...curriculum.scaffolding] as Word[]};
+    const courseCoach={connected,starting,speaking:conversation.isSpeaking,muted:conversation.isMuted,error,messages:active?.messages||[],feedback:active?.feedback||[],captions,
+      start:(context:string)=>{setMode('voice');void start(context,startOptions)},stop:()=>void stop(),
+      context:(t:string)=>{if(conversationRef.current.status==='connected')conversationRef.current.sendContextualUpdate(t)},
+      control:sendControl,setMuted:(m:boolean)=>{try{conversationRef.current.setMuted(m)}catch{/* sin conexión */}},getLevel};
+    return <><CourseLesson key={courseOpen.lesson.id+':'+((courseOpen.resume as {id?:string})?.id||'new')} lesson={courseOpen.lesson} resume={courseOpen.resume as never} history={history} onSave={v=>saveGuided(v as never)} onClose={()=>setCourseOpen(null)}
+      onNext={nextLesson?()=>openCourse(nextLesson,'lesson',history.find(s=>s.run?.lessonId===nextLesson.id&&!s.run.ended)?.run):undefined} coach={courseCoach}/>
+      {storageError&&<p role="alert" className="error">{storageError} <button className="text-button" onClick={exportNotebook}>Descargar cuaderno</button></p>}{configOpen&&<Config agentId={agentId} setAgentId={setAgentId} busy={busy} onError={setError} onClose={()=>setConfigOpen(false)}/>}</>;
+  }
   if(personalPhrase)return <PhrasePractice phrase={personalPhrase} onClose={()=>setPersonalPhrase(null)} onSave={saveGuided}/>;
   if(guided)return <><GuidedLesson resume={resumeRun} onSave={saveGuided} onClose={()=>{setGuided(false);setResumeRun(undefined)}} coach={{phrase:phrase?<PhraseCard phrase={phrase} onClose={()=>setPhrase(null)}/>:undefined,phraseText:phrase?.hanzi,connected,starting,speaking:conversation.isSpeaking,muted:conversation.isMuted,messages:active?.messages||[],feedback:active?.feedback||[],error,start:context=>{setMode('voice');void start(context)},stop:()=>void stop(),context:text=>{if(connected)conversation.sendContextualUpdate(text)},mute:()=>conversation.setMuted(!conversation.isMuted),getLevel}}/>{storageError&&<p role="alert" className="error">{storageError} <button className="text-button" onClick={exportNotebook}>Descargar cuaderno</button></p>}{configOpen&&<Config agentId={agentId} setAgentId={setAgentId} busy={busy} onError={setError} onClose={()=>setConfigOpen(false)}/>}</>;
   const visibleWords:Word[]=plan.allowed.filter((w:Word)=>plan.topic.words.includes(w.hanzi));
@@ -236,10 +268,11 @@ export default function App() {
     </header>
     <main>
       {view==='practice' ? <section className="start">
-        <div className="start-orb"><Gradient state="idle" getLevel={getLevel} size={compact?168:208}/></div>
+        <div className="start-orb"><Gradient state="idle" getLevel={getLevel} size={compact?84:104}/></div>
         <h1>Un poco, <em>cada día.</em></h1>
-        <p className="start-copy">Una lección, una frase que puedas usar. Empieza con bebidas, retira las pistas y vuelve a intentarlo otro día.</p>
-        <div className="guided-entry"><span className="eyebrow">Práctica guiada · HSK 1 · 10 min orientativos</span><h2>¿Agua o té?</h2><p>Escucha, construye tu respuesta y comprueba qué recuerdas. Puedes escribir y conectar la profesora por voz.</p><button className="primary" onClick={()=>{setError('');setLevel(1);setTopicId('food');setResumeRun(pendingLesson?.run);setGuided(true)}}>{pendingLesson?'Continuar mi lección':'Empezar mi lección'} <ArrowRight size={17}/></button><small>Audio del navegador y práctica escrita sin créditos. La conversación de ElevenLabs se conecta cuando tú lo eliges.</small></div>
+        <p className="start-copy">Empieza desde cero con tu libro: escucha una frase, entiende qué significa y contéstala con ayuda. Tu profesora de voz sigue el mismo ejercicio que ves en pantalla.</p>
+        <CoursePath history={history} onOpen={(lesson,kind,resume)=>openCourse(lesson,kind,resume)}/>
+        <div className="guided-entry extra-entry"><span className="eyebrow">Práctica adicional · repertorio HSK 3.0</span><h2>¿Agua o té?</h2><p>La lección de bebidas anterior, con respuestas escritas en caracteres. Úsala cuando ya domines las primeras lecciones.</p><button className="ghost" onClick={()=>{setError('');setLevel(1);setTopicId('food');setResumeRun(pendingLesson?.run);setGuided(true)}}>{pendingLesson?'Continuar práctica':'Abrir práctica'} <ArrowRight size={16}/></button></div>
         {due.length>0&&<p className="review-note">{due.length} palabras pendientes de repaso. Volver a verlas no significa que ya las domines.</p>}
         <p className="eyebrow">Conversación libre</p>
         <div className="start-picks">
@@ -261,6 +294,8 @@ export default function App() {
         : history.length ? <div className="session-list">{history.map(s=><button key={s.id} onClick={()=>setSelected(s)}><span className="date">{new Date(s.date).toLocaleDateString('es',{day:'2-digit',month:'short'})}</span><span><b>{s.topic}</b><small>HSK {s.level} · {s.summary?.completed?'Completada':'Parcial'}</small></span><span className="count-words">{s.practiced.length}</span><ArrowRight size={18}/></button>)}</div>
         : <div className="empty"><BookOpen size={32}/><p>La primera página está por escribir.</p><button className="primary" onClick={()=>setView('practice')}>Ir a mi práctica <ArrowRight size={16}/></button></div>}
         {personalPhrases.length>0&&<div className="personal-phrases"><h2>Frases que pediste</h2><p className="microcopy">Tu repertorio personal. Se practica aparte del progreso HSK.</p>{personalPhrases.map(p=><button className="personal-phrase" key={p.hanzi} onClick={()=>setPersonalPhrase(p)}><span lang="zh">{p.hanzi}</span><small>{p.es}</small><span>Practicar →</span></button>)}</div>}
+        <CourseGoals history={history}/>
+        {Object.keys(progress).length>0&&<h2 className="notebook-sub">Palabras del repertorio HSK 3.0 (2025)</h2>}
         <div className="progress-list">{Object.values(progress).map(p=><p key={p.word}><b lang="zh">{p.word}</b><span>{p.successfulReviews>=2?'Recuperada en días distintos':p.stage==='independent'?'Usada sin modelo':p.stage==='recognized'?'Reconocida':p.stage==='repeated'?'Repetida con apoyo':p.stage==='observed'?'En tu transcripción':'Escuchada'}</span><small>{p.nextDue<=Date.now()?'Repaso pendiente':'Repasar '+new Date(p.nextDue).toLocaleDateString('es',{day:'numeric',month:'short'})} · {p.modality==='text'?'por escrito':p.modality==='transcript'?'transcripción, sin evaluar tonos':p.modality==='reading'?'lectura':p.modality==='listening'?'escucha':'exposición'}</small></p>)}</div>
         <p className="microcopy">Tu cuaderno se guarda en este navegador. No se sincroniza entre dispositivos.</p>
       </section>}
@@ -301,7 +336,7 @@ function FeedbackCard({feedback}:{feedback:Feedback}) {
 }
 
 function SessionDetail({session}:{session:Session}) {
-  return <><h2>{session.topic}</h2>{session.mode==='guided'&&session.run&&<div className="attempt-list">{session.run.attempts.map((a,i)=><p key={i}><b>{a.text}</b><small>{a.correct?'Coincide con el ejercicio':'Necesitó otro intento'} · {a.assisted?'con apoyo':'sin modelo visible'} · {a.modality==='transcript'?'transcripción de voz':a.modality==='text'?'por escrito':a.modality}</small></p>)}</div>}{session.metrics&&<details><summary>Datos de conversación</summary><p>{session.metrics.interruptions} eventos de interrupción. {session.metrics.transcriptToAudioMs.length} muestras de transcripción a audio.</p><p className="microcopy">Tiempos: {session.metrics.transcriptToAudioMs.join(', ')||'sin datos'} ms. Es una aproximación desde la transcripción recibida, no latencia acústica medida.</p></details>}{session.feedback.length>0&&<details><summary>Frases y correcciones registradas</summary>{session.feedback.map((f,i)=><FeedbackCard key={i} feedback={f}/>)}</details>}{session.summary ? <div className="summary">
+  return <><h2>{session.topic}</h2>{session.mode==='guided'&&session.run&&<div className="attempt-list">{session.run.attempts.map((a,i)=><p key={i}><b>{a.text}</b><small>{a.correct?'Coincide con el ejercicio':'Necesitó otro intento'} · {a.assisted?'con apoyo':'sin modelo visible'} · {a.modality==='transcript'?'transcripción de voz':a.modality==='text'?'por escrito':a.modality==='pinyin'?'escrito en pinyin':a.modality==='choice'?'elegido entre opciones':a.modality==='listening-choice'?'al escuchar':a.modality==='reading-choice'?'leyendo pinyin':a.modality}</small></p>)}</div>}{session.metrics&&<details><summary>Datos de conversación</summary><p>{session.metrics.interruptions} eventos de interrupción. {session.metrics.transcriptToAudioMs.length} muestras de transcripción a audio.</p><p className="microcopy">Tiempos: {session.metrics.transcriptToAudioMs.join(', ')||'sin datos'} ms. Es una aproximación desde la transcripción recibida, no latencia acústica medida.</p></details>}{session.feedback.length>0&&<details><summary>Frases y correcciones registradas</summary>{session.feedback.map((f,i)=><FeedbackCard key={i} feedback={f}/>)}</details>}{session.summary ? <div className="summary">
     <div><h3>Vocabulario practicado</h3><p lang="zh">{session.summary.practiced.join(' · ') || 'Sin palabras registradas.'}</p><h3>Correcciones</h3>{session.summary.errors.length?session.summary.errors.map((f,i)=><FeedbackCard key={i} feedback={f}/>):<p>No se registraron errores con evidencia. Esto no equivale a una evaluación de pronunciación.</p>}</div>
     <div><h3>La próxima vez</h3><p>{session.summary.recommendation}</p><h3>Tu tarea</h3><p>{session.summary.homework}</p>{session.phrases && session.phrases.length>0 && <><h3>Frases que pediste</h3>{session.phrases.map((p,i)=><p key={i}><b lang="zh">{p.hanzi}</b> — {p.es}</p>)}</>}<small>{session.mode==='guided'&&session.summary.completed?'Ejercicios de la lección completados. No certifica pronunciación.':'Conversación registrada; no certifica dominio ni realización de un quiz.'}</small></div>
   </div> : <p>Transcripción guardada. La profesora no envió un resumen válido antes de la desconexión; no se atribuye progreso ni vocabulario.</p>}</>;

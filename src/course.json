@@ -1,0 +1,178 @@
+{
+  "id": "sc1",
+  "version": 1,
+  "title": "HSK Standard Course 1",
+  "titleZh": "HSK标准教程1",
+  "framework": {
+    "id": "hsk2009-sc1",
+    "label": "Libro HSK Standard Course 1 · marco HSK 2009 (nivel 1, 150 palabras)",
+    "differs": "El repertorio de conversación libre usa el temario HSK 3.0 (2025). El libro sigue el HSK de 2009. Su progreso se guarda aparte y no se mezcla."
+  },
+  "source": {
+    "book": "HSK Standard Course 1 (HSK标准教程1). Autora principal: Jiang Liping. Beijing Language and Culture University Press. Prólogo de noviembre de 2013.",
+    "pdfPageOffset": 20,
+    "pageNote": "En las lecciones, página PDF = página impresa + 20 (lección 1: impresa 2, PDF 22). Índice: PDF 16–21.",
+    "workbook": "Cuaderno de ejercicios HSK Standard Course 1: página PDF = página impresa + 2 (lección 1: impresa 1, PDF 3).",
+    "use": "Se usan la secuencia, los objetivos y las frases cortas de los diálogos. Los ejercicios, las explicaciones y las variantes son propios. No se incluyen escaneos ni transcripciones extensas."
+  },
+  "voiceMinutes": 20,
+  "browserVoiceRate": 0.8,
+  "browserVoiceSlowRate": 0.6,
+  "appAudioTailMs": 1500,
+  "greetingWaitMs": 4500,
+  "lessons": [
+    {
+      "id": "sc1-01",
+      "number": 1,
+      "status": "available",
+      "version": 2,
+      "title": {"hanzi": "你好", "pinyin": "Nǐ hǎo", "es": "Hola"},
+      "objective": "Saludar a una persona, a alguien con respeto o a un grupo, y pedir perdón.",
+      "book": {"printed": "2–7", "pdf": "22–27", "workbook": "impresa 1–4, PDF 3–6"},
+      "goals": [
+        {"id": "greet", "es": "Saludar y responder un saludo", "phrases": ["nihao"]},
+        {"id": "greet-polite", "es": "Saludar con respeto o a un grupo", "phrases": ["ninhao", "nimenhao"]},
+        {"id": "sorry", "es": "Pedir perdón", "phrases": ["duibuqi"]},
+        {"id": "sorry-reply", "es": "Responder a una disculpa", "phrases": ["meiguanxi"]}
+      ],
+      "words": [
+        {"hanzi": "你", "pinyin": "nǐ", "es": "tú"},
+        {"hanzi": "好", "pinyin": "hǎo", "es": "bien; bueno"},
+        {"hanzi": "您", "pinyin": "nín", "es": "usted"},
+        {"hanzi": "你们", "pinyin": "nǐmen", "es": "ustedes"},
+        {"hanzi": "对不起", "pinyin": "duìbuqǐ", "es": "perdón"},
+        {"hanzi": "没关系", "pinyin": "méi guānxi", "es": "no pasa nada"}
+      ],
+      "phrases": [
+        {"id": "nihao", "hanzi": "你好！", "pinyin": "Nǐ hǎo!", "es": "¡Hola!"},
+        {"id": "ninhao", "hanzi": "您好！", "pinyin": "Nín hǎo!", "es": "¡Hola! (a usted, con respeto)"},
+        {"id": "nimenhao", "hanzi": "你们好！", "pinyin": "Nǐmen hǎo!", "es": "¡Hola a todos!"},
+        {"id": "duibuqi", "hanzi": "对不起！", "pinyin": "Duìbuqǐ!", "es": "¡Perdón!"},
+        {"id": "meiguanxi", "hanzi": "没关系！", "pinyin": "Méi guānxi!", "es": "No pasa nada."}
+      ],
+      "steps": [
+        {"id": "t-nihao", "kind": "teach", "title": "Escucha", "prompt": "Así se saludan dos personas. Escucha y repite en voz alta.", "lines": [{"who": "A", "phrase": "nihao"}, {"who": "B", "phrase": "nihao"}], "note": "Se responde con la misma frase. Al decirlo seguido, nǐ suena casi como ní.", "ref": "Texto 1, p. 2 (PDF 22)"},
+        {"id": "r-nihao", "kind": "respond", "title": "Tu turno", "prompt": "La profesora te saluda. Respóndele.", "cue": "nihao", "answers": ["nihao", "ninhao"], "support": "nihao", "options": ["nihao", "duibuqi", "meiguanxi"], "ref": "Texto 1, p. 2 (PDF 22)"},
+        {"id": "t-ninhao", "kind": "teach", "title": "Escucha", "prompt": "Dos personas saludan con respeto a alguien mayor, y él les responde a las dos.", "lines": [{"who": "A", "phrase": "ninhao"}, {"who": "B", "phrase": "nimenhao"}], "note": "您 (nín) es «usted». 你们 (nǐmen) es «ustedes»: le hablas a más de una persona.", "ref": "Texto 2, p. 2 (PDF 22)"},
+        {"id": "u-nimenhao", "kind": "understand", "title": "¿Qué oíste?", "prompt": "Escucha. ¿A quién saluda?", "cue": "nimenhao", "choices": ["A varias personas", "A una persona mayor", "Pide perdón"], "answer": "A varias personas", "ref": "Texto 2, p. 2 (PDF 22)"},
+        {"id": "r-ninhao", "kind": "respond", "title": "Tu turno", "prompt": "Entras a clase y saludas a tu profesora con respeto.", "answers": ["ninhao"], "support": "ninhao", "options": ["ninhao", "nimenhao", "meiguanxi"], "ref": "Texto 2, p. 2 (PDF 22)"},
+        {"id": "t-duibuqi", "kind": "teach", "title": "Escucha", "prompt": "Alguien pide perdón y la otra persona le quita importancia.", "lines": [{"who": "A", "phrase": "duibuqi"}, {"who": "B", "phrase": "meiguanxi"}], "note": "对不起 sirve para «perdón» o «lo siento». 没关系 es «no pasa nada».", "ref": "Texto 3, p. 2 (PDF 22)"},
+        {"id": "r-meiguanxi", "kind": "respond", "title": "Tu turno", "prompt": "La profesora te pide perdón. Dile que no pasa nada.", "cue": "duibuqi", "answers": ["meiguanxi"], "support": "meiguanxi", "options": ["meiguanxi", "nihao", "duibuqi"], "ref": "Texto 3, p. 2 (PDF 22)"},
+        {"id": "c-meiguanxi", "kind": "recall", "title": "Sin mirar", "prompt": "Ahora alguien te pide perdón a ti. Respóndele.", "cue": "duibuqi", "answers": ["meiguanxi"], "support": "meiguanxi", "options": ["meiguanxi", "duibuqi", "nihao"], "ref": "Texto 3, p. 2 (PDF 22)"},
+        {"id": "c-duibuqi", "kind": "recall", "title": "Sin mirar", "prompt": "Chocas sin querer con alguien. ¿Qué le dices?", "answers": ["duibuqi"], "support": "duibuqi", "options": ["duibuqi", "meiguanxi", "nihao"], "ref": "Texto 3, p. 2 (PDF 22)"},
+        {"id": "c-nihao", "kind": "recall", "title": "Sin mirar", "prompt": "Te encuentras con una amiga. Salúdala.", "answers": ["nihao"], "support": "nihao", "options": ["nihao", "nimenhao", "duibuqi"], "ref": "Texto 1, p. 2 (PDF 22)"},
+        {"id": "c-ninhao", "kind": "recall", "title": "Sin mirar", "prompt": "Saluda con respeto a una persona mayor.", "answers": ["ninhao"], "support": "ninhao", "options": ["ninhao", "nimenhao", "meiguanxi"], "ref": "Texto 2, p. 2 (PDF 22)"}
+      ]
+    },
+    {
+      "id": "sc1-02",
+      "number": 2,
+      "status": "available",
+      "version": 2,
+      "title": {"hanzi": "谢谢你", "pinyin": "Xièxie nǐ", "es": "Gracias"},
+      "objective": "Dar las gracias, responder a un agradecimiento y despedirse.",
+      "book": {"printed": "8–13", "pdf": "28–33", "workbook": "impresa 5–8, PDF 7–10"},
+      "goals": [
+        {"id": "thank", "es": "Dar las gracias", "phrases": ["xiexie", "xiexieni"]},
+        {"id": "welcome", "es": "Responder a un agradecimiento", "phrases": ["buxie", "bukeqi"]},
+        {"id": "bye", "es": "Despedirse", "phrases": ["zaijian"]}
+      ],
+      "words": [
+        {"hanzi": "谢谢", "pinyin": "xièxie", "es": "gracias"},
+        {"hanzi": "不", "pinyin": "bù", "es": "no"},
+        {"hanzi": "不客气", "pinyin": "bú kèqi", "es": "de nada"},
+        {"hanzi": "再见", "pinyin": "zàijiàn", "es": "adiós"}
+      ],
+      "phrases": [
+        {"id": "xiexie", "hanzi": "谢谢！", "pinyin": "Xièxie!", "es": "¡Gracias!"},
+        {"id": "buxie", "hanzi": "不谢！", "pinyin": "Bú xiè!", "es": "De nada."},
+        {"id": "xiexieni", "hanzi": "谢谢你！", "pinyin": "Xièxie nǐ!", "es": "¡Gracias (a ti)!"},
+        {"id": "bukeqi", "hanzi": "不客气！", "pinyin": "Bú kèqi!", "es": "No hay de qué."},
+        {"id": "zaijian", "hanzi": "再见！", "pinyin": "Zàijiàn!", "es": "¡Adiós!"},
+        {"id": "nihao", "hanzi": "你好！", "pinyin": "Nǐ hǎo!", "es": "¡Hola!", "listed": false, "from": "sc1-01"}
+      ],
+      "steps": [
+        {"id": "t-xiexie", "kind": "teach", "title": "Escucha", "prompt": "Alguien da las gracias y la otra persona responde.", "lines": [{"who": "A", "phrase": "xiexie"}, {"who": "B", "phrase": "buxie"}], "note": "El segundo 谢 de xièxie se dice suave y corto. Delante de un cuarto tono, 不 suena bú.", "ref": "Texto 1, p. 8 (PDF 28)"},
+        {"id": "r-buxie", "kind": "respond", "title": "Tu turno", "prompt": "La profesora te da las gracias. Respóndele.", "cue": "xiexie", "answers": ["buxie", "bukeqi"], "support": "buxie", "options": ["buxie", "xiexie", "zaijian"], "ref": "Texto 1, p. 8 (PDF 28)"},
+        {"id": "t-bukeqi", "kind": "teach", "title": "Escucha", "prompt": "Otra forma de dar las gracias y de responder.", "lines": [{"who": "A", "phrase": "xiexieni"}, {"who": "B", "phrase": "bukeqi"}], "note": "不客气 es «no hay de qué». Sirve igual que 不谢.", "ref": "Texto 2, p. 8 (PDF 28)"},
+        {"id": "u-bukeqi", "kind": "understand", "title": "¿Qué oíste?", "prompt": "Escucha. ¿Qué significa?", "cue": "bukeqi", "choices": ["No hay de qué", "Gracias", "Adiós"], "answer": "No hay de qué", "ref": "Texto 2, p. 8 (PDF 28)"},
+        {"id": "t-zaijian", "kind": "teach", "title": "Escucha", "prompt": "Dos personas se despiden.", "lines": [{"who": "A", "phrase": "zaijian"}, {"who": "B", "phrase": "zaijian"}], "note": "Igual que con 你好, se responde con la misma frase.", "ref": "Texto 3, p. 8 (PDF 28)"},
+        {"id": "r-zaijian", "kind": "respond", "title": "Tu turno", "prompt": "La profesora se despide. Despídete tú también.", "cue": "zaijian", "answers": ["zaijian"], "support": "zaijian", "options": ["zaijian", "nihao", "xiexie"], "ref": "Texto 3, p. 8 (PDF 28)"},
+        {"id": "r-bukeqi", "kind": "respond", "title": "Conversa", "prompt": "Ahora te agradece de otra manera. Responde con la otra forma que aprendiste.", "cue": "xiexieni", "answers": ["bukeqi", "buxie"], "support": "bukeqi", "options": ["bukeqi", "duibuqi", "zaijian"], "ref": "Texto 2, p. 8 (PDF 28)"},
+        {"id": "c-bukeqi", "kind": "recall", "title": "Sin mirar", "prompt": "Te dan las gracias. Respóndele.", "cue": "xiexieni", "answers": ["bukeqi", "buxie"], "support": "bukeqi", "options": ["bukeqi", "xiexie", "zaijian"], "ref": "Texto 2, p. 8 (PDF 28)"},
+        {"id": "c-xiexie", "kind": "recall", "title": "Sin mirar", "prompt": "Alguien te ayuda con la maleta. Dale las gracias.", "answers": ["xiexie", "xiexieni"], "support": "xiexie", "options": ["xiexie", "buxie", "meiguanxi"], "ref": "Texto 1, p. 8 (PDF 28)"},
+        {"id": "c-nihao2", "kind": "recall", "title": "Repaso", "prompt": "Llegas a clase y ves a una compañera. Salúdala.", "answers": ["nihao"], "support": "nihao", "options": ["nihao", "zaijian", "bukeqi"], "ref": "Lección 1, p. 2 (PDF 22)"},
+        {"id": "c-zaijian", "kind": "recall", "title": "Sin mirar", "prompt": "Terminó la clase. Despídete.", "answers": ["zaijian"], "support": "zaijian", "options": ["zaijian", "xiexie", "nihao"], "ref": "Texto 3, p. 8 (PDF 28)"}
+      ]
+    },
+    {
+      "id": "sc1-03",
+      "number": 3,
+      "status": "available",
+      "version": 2,
+      "title": {"hanzi": "你叫什么名字", "pinyin": "Nǐ jiào shénme míngzi", "es": "¿Cómo te llamas?"},
+      "objective": "Preguntar y decir tu nombre, y contestar preguntas de sí o no sobre quién eres.",
+      "book": {"printed": "14–21", "pdf": "34–41", "workbook": "impresa 9 en adelante, PDF 11 en adelante"},
+      "goals": [
+        {"id": "name-ask", "es": "Preguntar el nombre", "phrases": ["nijiao"]},
+        {"id": "name-say", "es": "Decir tu nombre", "phrases": ["wojiao"]},
+        {"id": "student", "es": "Decir si eres estudiante o profesor", "phrases": ["bushilaoshi", "bushilaoshi-short", "shixuesheng", "bushi-shixuesheng"]},
+        {"id": "country", "es": "Contestar si eres de un país", "phrases": ["bushizhongguoren", "meiguoren", "shizhongguoren"]}
+      ],
+      "words": [
+        {"hanzi": "叫", "pinyin": "jiào", "es": "llamarse"},
+        {"hanzi": "什么", "pinyin": "shénme", "es": "qué"},
+        {"hanzi": "名字", "pinyin": "míngzi", "es": "nombre"},
+        {"hanzi": "我", "pinyin": "wǒ", "es": "yo"},
+        {"hanzi": "是", "pinyin": "shì", "es": "ser"},
+        {"hanzi": "老师", "pinyin": "lǎoshī", "es": "profesor; profesora"},
+        {"hanzi": "吗", "pinyin": "ma", "es": "¿…? (pregunta de sí o no)"},
+        {"hanzi": "学生", "pinyin": "xuésheng", "es": "estudiante"},
+        {"hanzi": "人", "pinyin": "rén", "es": "persona"},
+        {"hanzi": "中国", "pinyin": "Zhōngguó", "es": "China"},
+        {"hanzi": "美国", "pinyin": "Měiguó", "es": "Estados Unidos"},
+        {"hanzi": "李月", "pinyin": "Lǐ Yuè", "es": "Li Yue (nombre)"}
+      ],
+      "phrases": [
+        {"id": "nijiao", "hanzi": "你叫什么名字？", "pinyin": "Nǐ jiào shénme míngzi?", "es": "¿Cómo te llamas?"},
+        {"id": "liyue", "hanzi": "我叫李月。", "pinyin": "Wǒ jiào Lǐ Yuè.", "es": "Me llamo Li Yue."},
+        {"id": "wojiao", "hanzi": "我叫…", "pinyin": "Wǒ jiào …", "es": "Me llamo… (+ tu nombre)", "prefix": true},
+        {"id": "shilaoshima", "hanzi": "你是老师吗？", "pinyin": "Nǐ shì lǎoshī ma?", "es": "¿Eres profesor(a)?"},
+        {"id": "bushilaoshi", "hanzi": "我不是老师，我是学生。", "pinyin": "Wǒ bú shì lǎoshī, wǒ shì xuésheng.", "es": "No soy profesor, soy estudiante."},
+        {"id": "bushilaoshi-short", "hanzi": "我不是老师。", "pinyin": "Wǒ bú shì lǎoshī.", "es": "No soy profesor.", "listed": false},
+        {"id": "shixuesheng", "hanzi": "我是学生。", "pinyin": "Wǒ shì xuésheng.", "es": "Soy estudiante.", "listed": false},
+        {"id": "bushi-shixuesheng", "hanzi": "不是，我是学生。", "pinyin": "Bú shì, wǒ shì xuésheng.", "es": "No, soy estudiante.", "listed": false},
+        {"id": "shixueshengma", "hanzi": "你是学生吗？", "pinyin": "Nǐ shì xuésheng ma?", "es": "¿Eres estudiante?"},
+        {"id": "shizhongguorenma", "hanzi": "你是中国人吗？", "pinyin": "Nǐ shì Zhōngguó rén ma?", "es": "¿Eres chino(a)?"},
+        {"id": "meiguoren", "hanzi": "我不是中国人，我是美国人。", "pinyin": "Wǒ bú shì Zhōngguó rén, wǒ shì Měiguó rén.", "es": "No soy chino, soy estadounidense."},
+        {"id": "bushizhongguoren", "hanzi": "我不是中国人。", "pinyin": "Wǒ bú shì Zhōngguó rén.", "es": "No soy chino."},
+        {"id": "shizhongguoren", "hanzi": "我是中国人。", "pinyin": "Wǒ shì Zhōngguó rén.", "es": "Soy chino.", "listed": false}
+      ],
+      "steps": [
+        {"id": "t-nijiao", "kind": "teach", "title": "Escucha", "prompt": "Una persona pregunta el nombre y la otra contesta.", "lines": [{"who": "A", "phrase": "nijiao"}, {"who": "B", "phrase": "liyue"}], "note": "Para contestar, cambia Lǐ Yuè por tu nombre: Wǒ jiào + tu nombre.", "ref": "Texto 1, p. 14 (PDF 34)"},
+        {"id": "r-wojiao", "kind": "respond", "title": "Tu turno", "prompt": "La profesora te pregunta cómo te llamas. Dile tu nombre.", "cue": "nijiao", "answers": ["wojiao"], "support": "wojiao", "options": ["wojiao", "nijiao", "nihao"], "ref": "Texto 1, p. 14 (PDF 34)"},
+        {"id": "t-laoshi", "kind": "teach", "title": "Escucha", "prompt": "Una pregunta de sí o no, y una respuesta que dice «no».", "lines": [{"who": "A", "phrase": "shilaoshima"}, {"who": "B", "phrase": "bushilaoshi"}], "note": "吗 (ma) al final convierte la frase en pregunta de sí o no. 不是 (bú shì) es «no soy».", "ref": "Texto 2, p. 15 (PDF 35)"},
+        {"id": "u-xuesheng", "kind": "understand", "title": "¿Qué oíste?", "prompt": "Escucha la pregunta. ¿Qué quiere saber?", "cue": "shixueshengma", "choices": ["Si eres estudiante", "Cómo te llamas", "Si eres profesor"], "answer": "Si eres estudiante", "ref": "Ejercicio 2, p. 16 (PDF 36)"},
+        {"id": "r-laoshi", "kind": "respond", "title": "Tu turno", "prompt": "La profesora te pregunta si eres profesor. Contesta que no, que eres estudiante.", "cue": "shilaoshima", "answers": ["bushilaoshi", "bushilaoshi-short", "shixuesheng", "bushi-shixuesheng"], "support": "bushilaoshi", "options": ["bushilaoshi", "shilaoshima", "wojiao"], "ref": "Texto 2, p. 15 (PDF 35)"},
+        {"id": "t-zhongguo", "kind": "teach", "title": "Escucha", "prompt": "Dos niñas hablan de dónde son.", "lines": [{"who": "A", "phrase": "shizhongguorenma"}, {"who": "B", "phrase": "meiguoren"}], "note": "País + 人 (rén) = la persona de ese país: 中国人, «persona china».", "ref": "Texto 3, p. 15 (PDF 35)"},
+        {"id": "r-zhongguo", "kind": "respond", "title": "Tu turno", "prompt": "La profesora te pregunta si eres chino. Contesta que no.", "cue": "shizhongguorenma", "answers": ["bushizhongguoren", "meiguoren", "shizhongguoren"], "support": "bushizhongguoren", "options": ["bushizhongguoren", "shizhongguorenma", "bushilaoshi"], "ref": "Texto 3, p. 15 (PDF 35)"},
+        {"id": "c-xuesheng", "kind": "recall", "title": "Sin mirar", "prompt": "Contesta según tu caso real.", "cue": "shixueshengma", "answers": ["shixuesheng", "bushi-shixuesheng", "bushilaoshi"], "support": "shixuesheng", "options": ["shixuesheng", "shixueshengma", "bushizhongguoren"], "ref": "Ejercicio 2, p. 16 (PDF 36)"},
+        {"id": "c-zhongguo", "kind": "recall", "title": "Sin mirar", "prompt": "Te preguntan si eres chino. Contesta según tu caso.", "cue": "shizhongguorenma", "answers": ["bushizhongguoren", "meiguoren", "shizhongguoren"], "support": "bushizhongguoren", "options": ["bushizhongguoren", "shizhongguorenma", "shixuesheng"], "ref": "Texto 3, p. 15 (PDF 35)"},
+        {"id": "c-nijiao", "kind": "recall", "title": "Sin mirar", "prompt": "Conoces a alguien nuevo. Pregúntale cómo se llama.", "answers": ["nijiao"], "support": "nijiao", "options": ["nijiao", "wojiao", "shilaoshima"], "ref": "Texto 1, p. 14 (PDF 34)"},
+        {"id": "c-wojiao", "kind": "recall", "title": "Sin mirar", "prompt": "Ahora te lo preguntan a ti. Contesta.", "cue": "nijiao", "answers": ["wojiao"], "support": "wojiao", "options": ["wojiao", "nijiao", "xiexie"], "ref": "Texto 1, p. 14 (PDF 34)"}
+      ]
+    },
+    {"id": "sc1-04", "number": 4, "status": "future", "title": {"hanzi": "她是我的汉语老师", "pinyin": "Tā shì wǒ de Hànyǔ lǎoshī", "es": "Ella es mi profesora de chino"}, "objective": "Presentar a otra persona y decir quién es.", "book": {"printed": "22", "pdf": "42"}},
+    {"id": "sc1-05", "number": 5, "status": "future", "title": {"hanzi": "她女儿今年二十岁", "pinyin": "Tā nǚ'ér jīnnián èrshí suì", "es": "Su hija tiene 20 años"}, "objective": "Preguntar y decir la edad; números hasta 100.", "book": {"printed": "30", "pdf": "50"}},
+    {"id": "sc1-06", "number": 6, "status": "future", "title": {"hanzi": "我会说汉语", "pinyin": "Wǒ huì shuō Hànyǔ", "es": "Sé hablar chino"}, "objective": "Decir lo que sabes hacer.", "book": {"printed": "40", "pdf": "60"}},
+    {"id": "sc1-07", "number": 7, "status": "future", "title": {"hanzi": "今天几号", "pinyin": "Jīntiān jǐ hào", "es": "¿Qué fecha es hoy?"}, "objective": "Preguntar y decir la fecha y el día de la semana.", "book": {"printed": "48", "pdf": "68"}},
+    {"id": "sc1-08", "number": 8, "status": "future", "title": {"hanzi": "我想喝茶", "pinyin": "Wǒ xiǎng hē chá", "es": "Quiero tomar té"}, "objective": "Decir lo que quieres y preguntar cuánto cuesta.", "book": {"printed": "56", "pdf": "76"}},
+    {"id": "sc1-09", "number": 9, "status": "future", "title": {"hanzi": "你儿子在哪儿工作", "pinyin": "Nǐ érzi zài nǎr gōngzuò", "es": "¿Dónde trabaja tu hijo?"}, "objective": "Preguntar y decir dónde está alguien o algo.", "book": {"printed": "64", "pdf": "84"}},
+    {"id": "sc1-10", "number": 10, "status": "future", "title": {"hanzi": "我能坐这儿吗", "pinyin": "Wǒ néng zuò zhèr ma", "es": "¿Puedo sentarme aquí?"}, "objective": "Pedir permiso y decir qué hay en un lugar.", "book": {"printed": "72", "pdf": "92"}},
+    {"id": "sc1-11", "number": 11, "status": "future", "title": {"hanzi": "现在几点", "pinyin": "Xiànzài jǐ diǎn", "es": "¿Qué hora es?"}, "objective": "Preguntar y decir la hora.", "book": {"printed": "82", "pdf": "102"}},
+    {"id": "sc1-12", "number": 12, "status": "future", "title": {"hanzi": "明天天气怎么样", "pinyin": "Míngtiān tiānqì zěnmeyàng", "es": "¿Qué tiempo hará mañana?"}, "objective": "Hablar del tiempo.", "book": {"printed": "90", "pdf": "110"}},
+    {"id": "sc1-13", "number": 13, "status": "future", "title": {"hanzi": "他在学做中国菜呢", "pinyin": "Tā zài xué zuò Zhōngguó cài ne", "es": "Está aprendiendo cocina china"}, "objective": "Decir qué está haciendo alguien ahora.", "book": {"printed": "98", "pdf": "118"}},
+    {"id": "sc1-14", "number": 14, "status": "future", "title": {"hanzi": "她买了不少衣服", "pinyin": "Tā mǎile bù shǎo yīfu", "es": "Compró bastante ropa"}, "objective": "Contar algo que ya pasó.", "book": {"printed": "104", "pdf": "124"}},
+    {"id": "sc1-15", "number": 15, "status": "future", "title": {"hanzi": "我是坐飞机来的", "pinyin": "Wǒ shì zuò fēijī lái de", "es": "Vine en avión"}, "objective": "Decir cuándo, cómo o con quién llegaste.", "book": {"printed": "112", "pdf": "132"}}
+  ]
+}

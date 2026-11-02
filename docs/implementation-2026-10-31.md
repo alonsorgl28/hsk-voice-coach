@@ -19,12 +19,12 @@
 
 ## ElevenLabs
 
-El borrador del agente existente contiene el nuevo prompt de `agent/system-prompt.md`, saludo con identificación de IA, idioma adicional español, herramienta cliente `suggest_phrase`, modo Patient y espera de silencio de 15 segundos (antes 7). La voz Yun ya estaba a velocidad 0.9; se conserva el modelo y el reconocimiento existentes.
+El agente publicado el 1 de noviembre de 2026 contiene el nuevo prompt de `agent/system-prompt.md`, saludo con identificación de IA, idioma adicional español, herramienta cliente `suggest_phrase`, modo Patient y espera de silencio de 15 segundos (antes 7). La voz Yun ya estaba a velocidad 0.9; se conserva el modelo y el reconocimiento existentes.
 
-**Publicación pendiente:** ElevenLabs rechaza los hosts antiguos `localhost:5199` y `localhost:5173`. Se solicitó autorización para sustituirlos por `127.0.0.1:4173`, manteniendo `hsk-voice-coach.vercel.app`. No se cambió la lista de orígenes sin esa respuesta. Hasta publicar, las conversaciones remotas siguen usando la versión anterior.
+**Publicado el 1 de noviembre de 2026:** Main activo con el 100 % del tráfico, confirmado en ElevenLabs. Se retiraron los hosts inválidos `localhost:5199` y `localhost:5173`; permanece autorizado `hsk-voice-coach.vercel.app`. No se añadió `127.0.0.1:4173`. Las pruebas de voz con el estudiante siguen pendientes.
 
 ## Alcance y próximos pasos
 
 La primera lección usa un repertorio pequeño y respuestas previstas; una respuesta distinta puede ser válida aunque no coincida con el ejercicio. El currículo conserva las 40 palabras verificadas y añade andamiaje conversacional marcado por separado, no el temario HSK completo. Completar la secuencia no certifica fluidez.
 
-Pendientes: publicar el agente al resolver los hosts; probar conversación de voz en español/mandarín y medir interrupciones; ampliar lecciones y variantes aceptadas usando el mismo formato de configuración; comparar retención en sesiones de distintos días.
+Pendientes: probar conversación de voz en español/mandarín y medir interrupciones; ampliar lecciones y variantes aceptadas usando el mismo formato de configuración; comparar retención en sesiones de distintos días.
