@@ -25,5 +25,5 @@ Archivos: `src/course.json` (contenido y referencias), `src/course.mjs` (lógica
 ## No verificado
 
 - Prueba con el micrófono del alumno hablando mandarín: no la hice; la transcripción de tus respuestas, los comandos por voz y el silenciado durante el audio propio están probados solo con lógica y pruebas unitarias.
-- El nuevo prompt y `show_line` están en la rama `curso-libro-principiante` (0 % de tráfico). Main sigue con el prompt anterior: la app funciona con él, pero la profesora no sabe del contrato `show_line` ni de las reglas del curso hasta que publiques la rama.
+- El nuevo prompt y `show_line` se publicado en Main el 2026-11-01 (merge de la rama `curso-libro-principiante`, ya archivada; versión `agtvrsn_3701m6d5174bf9t99jf8t53jtnde`, Live 100 %). Allowlist sin cambios. Prueba simulada «recordar sin dar la respuesta» en Main: 3/3.
 - Sin deploy a Vercel ni commit.

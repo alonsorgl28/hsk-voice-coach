@@ -4,9 +4,9 @@ Actualizado: 2026-11-01 (noche). Rama de implementación y entrega: `feat/guided
 
 **Entrada principal: curso del libro HSK Standard Course 1** (marco HSK 2009). Ruta de 15 lecciones en el orden del libro; lecciones 1–3 completas (你好, 谢谢你, 你叫什么名字), 4–15 «Por preparar». Pinyin y español por defecto, caracteres opcionales, sin escribir caracteres para avanzar (voz, opciones o pinyin). Progreso por objetivos comunicativos y por frase, separado del repertorio HSK 3.0. Profesora de voz integrada con el paso actual (`coachContext`) y subtítulos estructurados (`show_line`). Datos en `src/course.json`, lógica en `src/course.mjs`. Detalles, pruebas y pendientes: `docs/implementation-2026-11-01-curso.md`; fuente y páginas: `docs/hsk-source.md`.
 
-ElevenLabs: el prompt del curso y la herramienta `show_line` (`tool_9201m6cx8zfae6e8yjd9pcv1scrb`) están en la rama `curso-libro-principiante` (`agtbrch_3701m6cxaeqze7dra9bz147vd9xs`, 0 % de tráfico). Main sigue con el prompt anterior; publicar la rama requiere la aprobación de Alonso (el cambio directo en Main fue bloqueado por permisos). Observado: una conversación desde 127.0.0.1:4173 conectó pese al allowlist.
+ElevenLabs: el prompt del curso y la herramienta `show_line` (`tool_9201m6cx8zfae6e8yjd9pcv1scrb`) publicado en Main el 2026-11-01 (merge de la rama `curso-libro-principiante`, ya archivada; versión `agtvrsn_3701m6d5174bf9t99jf8t53jtnde`, Live 100 %). Allowlist sin cambios. Prueba simulada «recordar sin dar la respuesta» en Main: 3/3. Observado: una conversación desde 127.0.0.1:4173 conectó pese al allowlist.
 
-Commit `efc38a4` en `feat/guided-learning` (push hecho, sin merge a `main`). Desplegado en producción el 2026-11-01 con `vercel --prod`: https://hsk-voice-coach.vercel.app (comprobado: ruta del libro y lección 1 cargan, sin errores de consola). La web en producción usa el prompt anterior de Main hasta publicar la rama de ElevenLabs.
+Commit `efc38a4` en `feat/guided-learning` (push hecho, sin merge a `main`). Desplegado en producción el 2026-11-01 con `vercel --prod`: https://hsk-voice-coach.vercel.app (comprobado: ruta del libro y lección 1 cargan, sin errores de consola). Web y agente quedan sincronizados.
 
 ## Estado anterior (31 oct – 1 nov, antes del curso)
 
