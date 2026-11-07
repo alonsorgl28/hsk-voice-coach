@@ -5,11 +5,13 @@ import curriculum from './curriculum.json';
 import Gradient from './Gradient';
 import useBrowserSpeech from './useBrowserSpeech';
 import {createCourseRun, courseAttempt, courseNext, canAdvance, setSupport, restartRun, recordExposure, courseSession, validCourseRun, routeUtterance,
-  phraseOf, phraseIndex, coachContext, stepOpening, resultUpdate, captionLine, reviewedIndex, wordsUpTo, deriveCourseProgress, goalStatus, normalizePinyin} from './course.mjs';
+  phraseOf, phraseIndex, coachContext, stepOpening, resultUpdate, captionLine, reviewedIndex, wordsUpTo, deriveCourseProgress, goalStatus, normalizePinyin,
+  exampleOf, slotHint, slotWords, todayEs} from './course.mjs';
 import {normalizeAnswer} from './progress.mjs';
 
-export type Phrase = {id:string; hanzi:string; pinyin:string; es:string; prefix?:boolean; listed?:boolean};
-export type Step = {id:string; kind:'teach'|'understand'|'respond'|'recall'; title:string; prompt:string; lines?:{who:string;phrase:string}[]; note?:string; ref?:string; cue?:string; answers?:string[]; support?:string; options?:string[]; choices?:string[]; answer?:string};
+type Line = {hanzi:string; pinyin:string; es:string};
+export type Phrase = Line & {id:string; prefix?:boolean; listed?:boolean; slots?:string[]; example?:Line};
+export type Step = {id:string; kind:'teach'|'understand'|'respond'|'recall'; title:string; prompt:string; lines?:{who:string;phrase:string}[]; note?:string; ref?:string; cue?:string; answers?:string[]; support?:string; options?:string[]; choices?:string[]; answer?:string; today?:boolean};
 export type Lesson = {id:string; number:number; status:string; version:number; review?:boolean; title:{hanzi:string;pinyin:string;es:string}; objective:string; book:{printed:string;pdf:string;workbook?:string}; goals:{id:string;es:string;phrases:string[]}[]; words:{hanzi:string;pinyin:string;es:string}[]; phrases:Phrase[]; steps:Step[]};
 export type Course = typeof courseData & {lessons:(Lesson|{id:string;number:number;status:string;title:Lesson['title'];objective:string;book:Lesson['book']})[]};
 export const course = courseData as unknown as Course;
@@ -31,13 +33,15 @@ const hash = (text:string) => [...text].reduce((h, c) => (h * 31 + c.charCodeAt(
 const mixed = <T,>(items:T[], seed:string, key:(item:T)=>string) => [...items].sort((a, b) => hash(seed + key(a)) - hash(seed + key(b)));
 
 // Everything visible is pinyin + Spanish first. Characters are a secondary layer.
-function PhraseView({phrase, hanzi, onPlay, size='m', disabled}:{phrase:Phrase; hanzi:boolean; onPlay?:()=>void; size?:'l'|'m'|'s'; disabled?:boolean}) {
+function PhraseView({phrase, hanzi, onPlay, size='m', disabled, example, detail}:{phrase:Phrase; hanzi:boolean; onPlay?:()=>void; size?:'l'|'m'|'s'; disabled?:boolean; example?:Line; detail?:boolean}) {
   return <div className={`cphrase cphrase-${size}`}>
-    {onPlay && <button className="play" aria-label={`Escuchar ${phrase.pinyin}`} disabled={disabled} onClick={onPlay}><Volume2 size={size==='s'?14:17}/></button>}
+    {onPlay && <button className="play" aria-label={`Escuchar ${example?.pinyin || phrase.pinyin}`} disabled={disabled} onClick={onPlay}><Volume2 size={size==='s'?14:17}/></button>}
     <div>
       {hanzi && <span className="cphrase-zh" lang="zh">{phrase.hanzi}</span>}
       <b className="cphrase-py" lang="zh-Latn">{phrase.pinyin}</b>
       <span className="cphrase-es">{phrase.es}</span>
+      {phrase.slots && example && <span className="cphrase-example">Ejemplo: {hanzi && <i lang="zh">{example.hanzi} · </i>}<b lang="zh-Latn">{example.pinyin}</b> — {example.es}</span>}
+      {phrase.slots && detail && <small className="cphrase-hint">{slotHint(phrase)}</small>}
     </div>
   </div>;
 }
@@ -72,7 +76,9 @@ export default function CourseLesson({lesson, resume, onSave, onClose, onNext, h
   const carryNotice = useRef('');
   const mounted = useRef(false);
   const progress = useMemo(() => deriveCourseProgress(history as never, course, curriculum.reviewIntervalsDays), [history]);
-  const words = useMemo(() => [...wordsUpTo(course, lesson), ...curriculum.words, ...curriculum.scaffolding], [lesson]);
+  const words = useMemo(() => [...wordsUpTo(course, lesson), ...curriculum.words, ...curriculum.scaffolding, ...slotWords()], [lesson]);
+  // A personal answer (age, country, today's date…) is modelled by an example; on a "today" step, by the real date.
+  const exampleFor = (p?:Phrase) => p?.slots ? exampleOf(p, {today: step.today ? new Date() : undefined}) as Line|undefined : undefined;
   const lastAttempt: Attempt|undefined = run.attempts.slice(dismissed).filter(a => a.task === step.id).at(-1);
 
   function change(next:Run) {runRef.current = next; setRun(next); onSave(courseSession(next, lesson, course));}
@@ -111,7 +117,7 @@ export default function CourseLesson({lesson, resume, onSave, onClose, onNext, h
     appAudio.current = [...appAudio.current.slice(-20), window_];
     const wasMuted = mutedRef.current;
     if (coach.connected && !wasMuted) coach.setMuted(true);
-    speech.say(phrase.hanzi, slow ? course.browserVoiceSlowRate : course.browserVoiceRate, () => {
+    speech.say(exampleFor(phrase)?.hanzi || phrase.hanzi, slow ? course.browserVoiceSlowRate : course.browserVoiceRate, () => {
       setHeard(true);
       change(recordExposure(runRef.current, phrase.id, {modality: 'listening'}));
       after?.();
@@ -133,7 +139,7 @@ export default function CourseLesson({lesson, resume, onSave, onClose, onNext, h
     if (step.kind !== 'teach' && step.kind !== 'understand' && runRef.current.passed) return;
     const answers = (step.answers || []).map(find).filter(Boolean) as Phrase[];
     const since = coach.messages.slice(stepStart.current.messages);
-    const teacherModeled = coach.connected && since.some(m => m.role === 'agent' && answers.some(a => !a.prefix && normalizeAnswer(m.text).includes(normalizeAnswer(a.hanzi))));
+    const teacherModeled = coach.connected && since.some(m => m.role === 'agent' && answers.some(a => !a.prefix && !a.slots && normalizeAnswer(m.text).includes(normalizeAnswer(a.hanzi))));
     let next = courseAttempt(runRef.current, lesson, text, {modality, teacherModeled});
     const attempt = next.attempts.at(-1)!;
     // A correction reveals the model: from here on, this step counts as assisted.
@@ -241,6 +247,7 @@ export default function CourseLesson({lesson, resume, onSave, onClose, onNext, h
     <main className="course-step">
       <p className="eyebrow">{KIND_LABEL[step.kind]} · paso {run.index + 1} de {lesson.steps.length}</p>
       <h1>{step.prompt}</h1>
+      {step.today && <p className="today-note">Hoy, en tu dispositivo: <b>{todayEs(new Date())}</b>. Dilo en chino.</p>}
       {noAudio && <p className="lesson-notice">Este navegador no tiene voz en mandarín. Lee el pinyin en voz alta; puedes seguir con opciones o escribiendo. {coach.connected ? '' : 'La profesora de voz sí tiene audio.'}</p>}
       {speech.error && !noAudio && <p className="lesson-notice" role="status">{speech.error}</p>}
 
@@ -265,24 +272,24 @@ export default function CourseLesson({lesson, resume, onSave, onClose, onNext, h
         <div className="answer">
           <p className="answer-label">Tu respuesta</p>
           {run.supportVisible && support
-            ? <div className="support"><PhraseView phrase={support} hanzi={hanzi} size="l" disabled={speech.speaking || coach.speaking} onPlay={support.prefix ? undefined : () => play(support)}/><button className="text-button" onClick={() => toggleSupport(false)}>Quitar apoyo, ya puedo</button></div>
+            ? <div className="support"><PhraseView phrase={support} hanzi={hanzi} size="l" example={exampleFor(support)} detail disabled={speech.speaking || coach.speaking} onPlay={support.prefix ? undefined : () => play(support)}/><button className="text-button" onClick={() => toggleSupport(false)}>Quitar apoyo, ya puedo</button></div>
             : <button className="ghost" onClick={() => toggleSupport(true)}>{step.kind === 'recall' ? 'No me acuerdo: ver la frase' : 'Mostrar apoyo'}</button>}
           {run.supportUsed && !run.supportVisible && <p className="microcopy">Retiraste el apoyo. Ya lo viste en este paso, así que la respuesta se guarda como «con apoyo».</p>}
           {!run.passed && <>
             <p className="microcopy">{coach.connected ? 'Dilo en voz alta. También puedes elegir o escribir en pinyin.' : 'Dilo en voz alta para practicar y después elige o escribe en pinyin para comprobar.'}</p>
             {(step.kind === 'respond' || showOptions)
-              ? <div className="options">{mixed(step.options || [], run.id + step.id, id => id).map(id => {const p = find(id)!; return <button key={id} className="option" onClick={() => submit(p.prefix ? p.pinyin.replace('…', '(tu nombre)') : p.hanzi, 'choice')}><b>{p.pinyin}</b><small>{p.es}</small></button>;})}</div>
+              ? <div className="options">{mixed(step.options || [], run.id + step.id, id => id).map(id => {const p = find(id)!; return <button key={id} className="option" onClick={() => submit(p.prefix ? p.pinyin.replace('…', '(tu nombre)') : exampleFor(p)?.hanzi || p.hanzi, 'choice')}><b>{p.pinyin}</b><small>{p.es}</small></button>;})}</div>
               : <button className="text-button" onClick={() => setShowOptions(true)}>Elegir entre opciones</button>}
             <form className="pinyin-form" onSubmit={e => {e.preventDefault(); const value = typed.trim(); if (value) submit(value, /\p{Script=Han}/u.test(value) ? 'text' : 'pinyin');}}>
               <label htmlFor="pinyin-answer">O escríbelo en pinyin</label>
-              <div><input id="pinyin-answer" value={typed} maxLength={200} autoComplete="off" autoCapitalize="off" spellCheck={false} placeholder={support?.prefix ? 'wo jiao + tu nombre' : 'por ejemplo: ni hao'} onChange={e => setTyped(e.target.value)}/><button className="primary" disabled={!normalizePinyin(typed) && !/\p{Script=Han}/u.test(typed)}>Comprobar <Check size={15}/></button></div>
+              <div><input id="pinyin-answer" value={typed} maxLength={200} autoComplete="off" autoCapitalize="off" spellCheck={false} placeholder={support?.prefix ? 'wo jiao + tu nombre' : support?.slots ? 'en pinyin; los números pueden ir en cifras' : 'por ejemplo: ni hao'} onChange={e => setTyped(e.target.value)}/><button className="primary" disabled={!normalizePinyin(typed) && !/\p{Script=Han}/u.test(typed)}>Comprobar <Check size={15}/></button></div>
               <small>Sin tonos también vale: al escribir no se evalúan los tonos.</small>
             </form>
           </>}
         </div>
       </>}
 
-      {lastAttempt && step.kind !== 'teach' && <FeedbackBox attempt={lastAttempt} step={step} expected={step.kind === 'understand' ? undefined : support} passed={run.passed} hanzi={hanzi}
+      {lastAttempt && step.kind !== 'teach' && <FeedbackBox attempt={lastAttempt} step={step} expected={step.kind === 'understand' ? undefined : support && exampleFor(support) ? {...support, ...exampleFor(support)!} : support} passed={run.passed} hanzi={hanzi}
         onRetry={() => setDismissed(runRef.current.attempts.length)} onHelp={() => toggleSupport(true)} onSkip={step.kind === 'recall' && !run.passed ? () => advance(true) : undefined}/>}
       {step.kind !== 'teach' && lastAttempt === undefined && step.kind === 'recall' && <button className="text-button" onClick={() => advance(true)}>Aún no lo recuerdo: repasarlo otro día</button>}
       {correction && <aside className="lesson-correction"><span className="eyebrow">Una corrección de la profesora</span><p><b>{correction.pinyin}</b></p>{hanzi && <p lang="zh">{correction.hanzi}</p>}<p>{correction.explanation}</p>{correction.evidence && <small>Tu frase: {correction.evidence}</small>}</aside>}

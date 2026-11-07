@@ -42,19 +42,142 @@ export function normalizePinyin(text) {
 }
 export const hasHan = text => HAN.test(String(text || ''));
 
+// ── Personal answers with a bounded slot ─────────────────────────────────
+// A phrase with "slots" (e.g. 我今年…岁。) accepts each "…" filled with ONE value of that slot: a number in a
+// fixed range (Chinese numerals, pinyin or digits) or an item of a short list. Nothing else, and no prefix match.
+// two: how 2 is said on its own in that context (两岁, 两口人, 两块; but 二月, 二号).
+const LIST = (...items) => items.map(([zh, py, es]) => ({zh, py, es}));
+export const SLOTS = {
+  age: {type: 'number', min: 1, max: 99, two: 'liang', es: 'tu edad, del 1 al 99, en pinyin o en cifras (2 = liǎng)'},
+  count: {type: 'number', min: 1, max: 20, two: 'liang', es: 'cuántas personas, del 1 al 20, en pinyin o en cifras (2 = liǎng)'},
+  money: {type: 'number', min: 1, max: 99, two: 'liang', es: 'un precio del 1 al 99, en pinyin o en cifras (2 = liǎng)'},
+  month: {type: 'number', min: 1, max: 12, two: 'er', es: 'el mes, del 1 al 12'},
+  day: {type: 'number', min: 1, max: 31, two: 'er', es: 'el día, del 1 al 31'},
+  weekday: {type: 'list', es: 'el día de la semana', values: LIST(['一', 'yī', 'lunes'], ['二', 'èr', 'martes'], ['三', 'sān', 'miércoles'], ['四', 'sì', 'jueves'], ['五', 'wǔ', 'viernes'], ['六', 'liù', 'sábado'], ['日', 'rì', 'domingo'], ['天', 'tiān', 'domingo'])},
+  country: {type: 'list', es: 'tu país', extra: 'Salvo China y Estados Unidos, estos países no están en el libro: son apoyo para contestar con la verdad.', values: LIST(['中国', 'Zhōngguó', 'China'], ['美国', 'Měiguó', 'Estados Unidos'], ['秘鲁', 'Bìlǔ', 'Perú'], ['墨西哥', 'Mòxīgē', 'México'],
+    ['西班牙', 'Xībānyá', 'España'], ['阿根廷', 'Āgēntíng', 'Argentina'], ['哥伦比亚', 'Gēlúnbǐyà', 'Colombia'], ['智利', 'Zhìlì', 'Chile'], ['委内瑞拉', 'Wěinèiruìlā', 'Venezuela'],
+    ['厄瓜多尔', 'Èguāduō’ěr', 'Ecuador'], ['玻利维亚', 'Bōlìwéiyà', 'Bolivia'], ['乌拉圭', 'Wūlāguī', 'Uruguay'], ['巴拉圭', 'Bālāguī', 'Paraguay'], ['古巴', 'Gǔbā', 'Cuba'],
+    ['多米尼加', 'Duōmǐníjiā', 'República Dominicana'], ['哥斯达黎加', 'Gēsīdálíjiā', 'Costa Rica'], ['巴拿马', 'Bānámǎ', 'Panamá'], ['危地马拉', 'Wēidìmǎlā', 'Guatemala'],
+    ['洪都拉斯', 'Hóngdūlāsī', 'Honduras'], ['萨尔瓦多', 'Sà’ěrwǎduō', 'El Salvador'], ['尼加拉瓜', 'Níjiālāguā', 'Nicaragua'], ['巴西', 'Bāxī', 'Brasil'],
+    ['英国', 'Yīngguó', 'Reino Unido'], ['法国', 'Fǎguó', 'Francia'], ['德国', 'Déguó', 'Alemania'], ['意大利', 'Yìdàlì', 'Italia'], ['加拿大', 'Jiānádà', 'Canadá'], ['日本', 'Rìběn', 'Japón'])},
+  drink: {type: 'list', es: 'lo que quieres beber', extra: 'Agua y café no están en esta lección del libro.', values: LIST(['茶', 'chá', 'té'], ['水', 'shuǐ', 'agua'], ['咖啡', 'kāfēi', 'café'])},
+  workplace: {type: 'list', es: 'dónde trabajas', extra: 'Empresa (gōngsī) no está en esta lección del libro.', values: LIST(['学校', 'xuéxiào', 'una escuela'], ['医院', 'yīyuàn', 'un hospital'], ['商店', 'shāngdiàn', 'una tienda'],
+    ['家', 'jiā', 'casa'], ['公司', 'gōngsī', 'una empresa'], ['饭馆儿', 'fànguǎnr', 'un restaurante'])},
+};
+const UNITS_PY = ['yi', 'er', 'san', 'si', 'wu', 'liu', 'qi', 'ba', 'jiu'];
+const UNITS_ZH = '一二三四五六七八九';
+const NUM_PY = new RegExp(`^(?:(${UNITS_PY.join('|')})?(shi))?(${UNITS_PY.join('|')})?$`);
+const NUM_ZH = new RegExp(`^(?:([${UNITS_ZH}])?(十))?([${UNITS_ZH}])?$`);
+// Parses 1–99 written as digits, Chinese numerals or toneless pinyin. Returns NaN for anything else.
+export function parseNumber(raw, slot) {
+  if (!raw) return NaN;
+  if (/^\d{1,3}$/.test(raw)) return Number(raw);
+  if (raw === 'liang' || raw === '两') return slot.two === 'liang' ? 2 : NaN;
+  const han = hasHan(raw);
+  const m = raw.match(han ? NUM_ZH : NUM_PY);
+  if (!m) return NaN;
+  const unit = x => x ? (han ? UNITS_ZH.indexOf(x) : UNITS_PY.indexOf(x)) + 1 : 0;
+  const [, tens, ten, ones] = m;
+  if (ten && unit(tens) === 1) return NaN; // 一十 is not how 10–19 are said
+  const value = (ten ? (tens ? unit(tens) : 1) * 10 : 0) + unit(ones);
+  if (value === 2 && !ten && slot.two === 'liang') return NaN; // 二岁, 二口人, 二块 → 两
+  return value;
+}
+const WEEKDAY = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7, '天': 7};
+function slotValue(raw, name, han) {
+  const slot = SLOTS[name];
+  if (!slot || !raw) return null;
+  if (slot.type === 'number') {
+    const n = parseNumber(raw, slot);
+    return Number.isInteger(n) && n >= slot.min && n <= slot.max ? n : null;
+  }
+  const item = slot.values.find(v => han ? v.zh === raw : normalizePinyin(v.py) === raw);
+  if (!item) return null;
+  return name === 'weekday' ? WEEKDAY[item.zh] : item.zh;
+}
+// Pinyin that keeps written numbers: "jiu3 yue4 1 hao4" → "jiuyue1hao". A single digit 1–5 right after a letter is a tone.
+function pinyinWithDigits(text) {
+  return text.toLowerCase().replace(/u:/g, 'v').replace(/[üǖǘǚǜ]/g, 'v').normalize('NFD').replace(/\p{M}/gu, '')
+    .replace(/([a-z])[1-5](?![0-9])/g, '$1').replace(/[^a-z0-9]/g, '');
+}
+// Fills the slots of a phrase from an answer. Returns the values, or null when it does not fit.
+export function slotValues(text, phrase) {
+  if (typeof text !== 'string' || !Array.isArray(phrase?.slots)) return null;
+  const han = hasHan(text);
+  const typed = han ? normalizeAnswer(text) : pinyinWithDigits(text);
+  const parts = (han ? phrase.hanzi : phrase.pinyin).split('…').map(p => han ? normalizeAnswer(p) : normalizePinyin(p));
+  if (parts.length !== phrase.slots.length + 1) return null;
+  const pattern = new RegExp('^' + parts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('(.+?)') + '$', 'u');
+  const m = typed.match(pattern);
+  if (!m) return null;
+  const values = phrase.slots.map((name, i) => slotValue(m[i + 1], name, han));
+  return values.every(v => v !== null) ? values : null;
+}
+// "today": a date answer must be the real date of the attempt (local time of the device).
+function fitsToday(phrase, values, today) {
+  if (!today) return true;
+  const expected = {month: today.getMonth() + 1, day: today.getDate(), weekday: today.getDay() || 7};
+  return phrase.slots.every((name, i) => !(name in expected) || values[i] === expected[name]);
+}
+
 // Returns the matched phrase id (or null) for a typed/transcribed answer.
-export function matchAnswer(text, phrases) {
+/** @param {string} text @param {any[]} phrases @param {{today?:Date}} [opts] */
+export function matchAnswer(text, phrases, {today} = {}) {
   if (typeof text !== 'string' || !text.trim()) return null;
   const han = hasHan(text);
   const typed = han ? normalizeAnswer(text) : normalizePinyin(text);
   if (!typed) return null;
   for (const phrase of phrases) {
+    if (phrase.slots) {
+      const values = slotValues(text, phrase);
+      if (values && fitsToday(phrase, values, today)) return phrase.id;
+      continue;
+    }
     const target = han ? normalizeAnswer(phrase.hanzi.replace(/…/g, '')) : normalizePinyin(phrase.pinyin);
     if (!target) continue;
     if (phrase.prefix ? typed.startsWith(target) && typed.length > target.length : typed === target) return phrase.id;
   }
   return null;
 }
+
+// ── Examples for slot phrases ────────────────────────────────────────────
+const UNIT_TONE = ['yī', 'èr', 'sān', 'sì', 'wǔ', 'liù', 'qī', 'bā', 'jiǔ'];
+export const numberZh = n => (n >= 20 ? UNITS_ZH[Math.floor(n / 10) - 1] : '') + (n >= 10 ? '十' : '') + (n % 10 ? UNITS_ZH[n % 10 - 1] : '');
+// èr after another syllable takes the syllable-dividing mark: shí'èr (book, p. 35).
+export const numberPinyin = n => (n >= 20 ? UNIT_TONE[Math.floor(n / 10) - 1] : '') + (n >= 10 ? 'shí' : '') + (n % 10 ? (n > 10 && n % 10 === 2 ? "'" : '') + UNIT_TONE[n % 10 - 1] : '');
+const MONTH_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const WEEKDAY_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+export const todayEs = date => `${WEEKDAY_ES[date.getDay()]} ${date.getDate()} de ${MONTH_ES[date.getMonth()]}`;
+const DATED = ['month', 'day', 'weekday'];
+// The model shown and played for a slot phrase. On a "today" step it is today's real date.
+/** @returns {{hanzi:string,pinyin:string,es:string}|undefined} */
+export function exampleOf(phrase, {today} = {}) {
+  if (!phrase?.slots) return undefined;
+  if (!today || !phrase.slots.some(s => DATED.includes(s))) return phrase.example;
+  const fill = {
+    month: [numberZh(today.getMonth() + 1), numberPinyin(today.getMonth() + 1)],
+    day: [numberZh(today.getDate()), numberPinyin(today.getDate())],
+    weekday: today.getDay() ? [UNITS_ZH[today.getDay() - 1], UNIT_TONE[today.getDay() - 1]] : ['天', 'tiān'],
+  };
+  const join = (template, k) => template.split('…').map((part, i) => i === 0 ? part : (fill[phrase.slots[i - 1]]?.[k] ?? '') + part).join('');
+  const es = phrase.slots.includes('day')
+    ? `Hoy es ${phrase.slots.includes('weekday') ? todayEs(today) : `${today.getDate()} de ${MONTH_ES[today.getMonth()]}`}.`
+    : `Hoy es ${WEEKDAY_ES[today.getDay()]}.`;
+  return {hanzi: join(phrase.hanzi, 0), pinyin: join(phrase.pinyin, 1), es};
+}
+// Short, honest description of what a slot phrase accepts, for the screen and for the teacher.
+export function slotHint(phrase) {
+  if (!phrase?.slots) return '';
+  return [...new Set(phrase.slots)].map(name => {
+    const slot = SLOTS[name];
+    if (!slot) return '';
+    if (slot.type === 'number') return `Pon ${slot.es}.`;
+    if (name === 'weekday') return 'Día de la semana: xīngqī yī (lunes) … xīngqī liù (sábado); domingo: xīngqīrì o xīngqītiān.';
+    return `Vale ${slot.es}: ${slot.values.map(v => `${v.py} (${v.es})`).join(', ')}.${slot.extra ? ' ' + slot.extra : ''}`;
+  }).filter(Boolean).join(' ');
+}
+// Words of the slot lists, so the teacher's lines with them can be captioned with pinyin.
+export const slotWords = () => Object.values(SLOTS).flatMap(s => s.type === 'list' ? s.values.map(v => ({hanzi: v.zh, pinyin: v.py, es: v.es})) : []);
 
 // ── What the learner said ────────────────────────────────────────────────
 // Spanish requests are commands for the teacher and the app, never graded as answers.
@@ -126,7 +249,7 @@ export function courseAttempt(run, lesson, text, {modality = 'pinyin', at = new 
   if (step.kind === 'understand') correct = text === step.answer;
   else {
     const pool = step.kind === 'teach' ? step.lines.map(l => l.phrase) : step.answers;
-    matched = matchAnswer(text, pool.map(id => phraseOf(lesson, id)).filter(Boolean));
+    matched = matchAnswer(text, pool.map(id => phraseOf(lesson, id)).filter(Boolean), {today: step.today ? new Date(at) : undefined});
     correct = !!matched;
   }
   const assisted = step.kind === 'teach' || run.supportUsed || teacherModeled || CHOICE_MODALITIES.has(modality);
@@ -261,7 +384,10 @@ function captionChunk(chunk, reviewed, agent) {
 }
 export function reviewedIndex(course) {
   const map = new Map();
-  for (const phrase of phraseIndex(course).values()) if (!phrase.prefix) map.set(captionKey(phrase.hanzi), phrase);
+  for (const phrase of phraseIndex(course).values()) {
+    if (phrase.slots) { if (phrase.example) map.set(captionKey(phrase.example.hanzi), phrase.example); }
+    else if (!phrase.prefix) map.set(captionKey(phrase.hanzi), phrase);
+  }
   return map;
 }
 /** @param {string} text @param {{reviewed:Map<string,any>, agent?:Map<string,any>, words?:any[]}} opts @returns {CaptionPart[]} */
@@ -290,17 +416,21 @@ export function captionLine(text, {reviewed, agent = new Map(), words = []}) {
 // ── Shared state with the voice teacher ──────────────────────────────────
 const line = p => p ? `«${p.hanzi}» (${p.pinyin}: ${p.es})` : '';
 /** @param {any} lesson @param {any} run @param {{progress?:Record<string, any>, course?:any}} [opts] */
-export function coachContext(lesson, run, {progress = {}, course} = {}) {
+export function coachContext(lesson, run, {progress = {}, course, now = Date.now()} = {}) {
   const step = lesson.steps[run.index];
   const cue = step.cue && phraseOf(lesson, step.cue);
   const support = step.support && phraseOf(lesson, step.support);
+  // A personal answer (age, country, real date…): the teacher must accept any valid value, not one fixed model.
+  const today = step.today ? new Date(now) : undefined;
+  const example = exampleOf(support, {today});
+  const personal = support?.slots ? ` Es una respuesta personal: ${today ? `la correcta es la fecha real de hoy, ${line(example)}` : `vale cualquier valor válido (${slotHint(support)}); ejemplo: ${line(example)}`}.` : '';
   const reviewedLines = lesson.phrases.filter(p => p.listed !== false).map(p => `${p.hanzi} | ${p.pinyin} | ${p.es}`).join('\n');
   const learned = lesson.phrases.filter(p => (RANK[progress[p.id]?.stage] ?? -1) >= RANK.repeated).map(p => p.pinyin);
   const tasks = {
     teach: () => `Enseña este diálogo: ${step.lines.map(l => `${l.who}: ${line(phraseOf(lesson, l.phrase))}`).join(' / ')}. Di cada frase una vez, despacio, y pide que la repita. Explicación disponible: ${step.note || ''}`,
     understand: () => `Ejercicio de comprensión. Di solo ${line(cue)} y pregunta en español qué entendió. No traduzcas antes de que responda; la app muestra las opciones.`,
-    respond: () => `${cue ? `Di ${line(cue)} y espera.` : `Pide en español: «${step.prompt}» y espera.`} Respuesta esperada del estudiante: ${line(support)}. ${run.supportVisible ? 'El estudiante ve el apoyo en pantalla.' : 'El apoyo está oculto: no le des la respuesta salvo que la pida.'}`,
-    recall: () => `Recuperación sin modelo. ${cue ? `Di ${line(cue)} y espera.` : `Plantea en español: «${step.prompt}» y espera.`} No digas la respuesta ${line(support)} antes de que lo intente, salvo que pida ayuda.`,
+    respond: () => `${cue ? `Di ${line(cue)} y espera.` : `Pide en español: «${step.prompt}» y espera.`} Respuesta esperada del estudiante: ${line(support)}.${personal} ${run.supportVisible ? 'El estudiante ve el apoyo en pantalla.' : 'El apoyo está oculto: no le des la respuesta salvo que la pida.'}`,
+    recall: () => `Recuperación sin modelo. ${cue ? `Di ${line(cue)} y espera.` : `Plantea en español: «${step.prompt}» y espera.`} No digas la respuesta ${line(support)} antes de que lo intente, salvo que pida ayuda.${personal}`,
   };
   const task = tasks[step.kind]();
   return [
@@ -321,5 +451,7 @@ export function stepOpening(lesson, run) {
 export function resultUpdate(step, attempt, lesson) {
   const expected = phraseOf(lesson, step.support || step.cue || '');
   if (attempt.correct) return `La app comprobó la respuesta del estudiante («${attempt.text}», ${attempt.modality}) y coincide. Felicítalo en una frase corta en español y espera; no evalúes tonos.`;
-  return `La app comprobó la respuesta del estudiante («${attempt.text}», ${attempt.modality}) y no coincide${expected ? ` con ${line(expected)}` : ''}. Da UNA corrección breve en español y ofrece intentarlo otra vez.`;
+  const model = expected?.slots ? exampleOf(expected, {today: step.today ? new Date(attempt.at) : undefined}) : expected;
+  const personal = expected?.slots ? ` (respuesta personal${step.today ? ': debe ser la fecha real de hoy' : `: ${slotHint(expected)}`}; modelo ${line(model)})` : '';
+  return `La app comprobó la respuesta del estudiante («${attempt.text}», ${attempt.modality}) y no coincide${expected ? ` con ${line(expected)}${personal}` : ''}. Da UNA corrección breve en español y ofrece intentarlo otra vez.`;
 }

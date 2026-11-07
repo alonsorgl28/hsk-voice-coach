@@ -1,19 +1,23 @@
 # HSK Voice Coach — contexto actual
 
-Actualizado: 2026-11-01 (noche). Rama de implementación y entrega: `feat/guided-learning`.
+Actualizado: 2026-11-07. Rama: `main` (sigue a `origin/main`). Base de este trabajo: `a543ac6`.
 
-**Entrada principal: curso del libro HSK Standard Course 1** (marco HSK 2009). Ruta de 15 lecciones en el orden del libro; lecciones 1–3 completas (你好, 谢谢你, 你叫什么名字), 4–15 «Por preparar». Pinyin y español por defecto, caracteres opcionales, sin escribir caracteres para avanzar (voz, opciones o pinyin). Progreso por objetivos comunicativos y por frase, separado del repertorio HSK 3.0. Profesora de voz integrada con el paso actual (`coachContext`) y subtítulos estructurados (`show_line`). Datos en `src/course.json`, lógica en `src/course.mjs`. Detalles, pruebas y pendientes: `docs/implementation-2026-11-01-curso.md`; fuente y páginas: `docs/hsk-source.md`.
+**Entrada principal: curso del libro HSK Standard Course 1** (marco HSK 2009). Ruta de 15 lecciones en el orden del libro; **lecciones 1–9 completas** (1–3 desde el 1 nov; 4–9 desde el 7 nov), 10–15 «Por preparar». Pinyin y español por defecto, caracteres opcionales, sin escribir caracteres para avanzar (voz, opciones o pinyin). Progreso por objetivos comunicativos y por frase, separado del repertorio HSK 3.0. Respuestas personales (edad, familia, país, fecha real, bebida, trabajo, precio) validadas con rangos y listas cerradas (`SLOTS`). Profesora de voz integrada con el paso actual (`coachContext`) y subtítulos (`show_line`). Datos en `src/course.json`, lógica en `src/course.mjs`.
 
-ElevenLabs: el prompt del curso y la herramienta `show_line` (`tool_9201m6cx8zfae6e8yjd9pcv1scrb`) publicado en Main el 2026-11-01 (merge de la rama `curso-libro-principiante`, ya archivada; versión `agtvrsn_3701m6d5174bf9t99jf8t53jtnde`, Live 100 %). Allowlist sin cambios. Prueba simulada «recordar sin dar la respuesta» en Main: 3/3. Observado: una conversación desde 127.0.0.1:4173 conectó pese al allowlist.
+Detalles: `docs/implementation-2026-11-07-lecciones-4-9.md` (lecciones 4–9, pruebas, problemas de voz pendientes) y `docs/implementation-2026-11-01-curso.md` (diseño del curso). Fuente y páginas: `docs/hsk-source.md`.
 
-Commit `efc38a4` en `feat/guided-learning` (push hecho, sin merge a `main`). Desplegado en producción el 2026-11-01 con `vercel --prod`: https://hsk-voice-coach.vercel.app (comprobado: ruta del libro y lección 1 cargan, sin errores de consola). Web y agente quedan sincronizados.
+Verificado el 7 nov: 70 pruebas, build, recorrido completo de 4–9 en navegador (escritorio y móvil, recarga, cuaderno anterior intacto). **No** probado con ElevenLabs ni micrófono en este encargo.
 
-## Estado anterior (31 oct – 1 nov, antes del curso)
+ElevenLabs: prompt y `show_line` publicados en Main el 2026-11-01 (versión `agtvrsn_3701m6d5174bf9t99jf8t53jtnde`). Leído el 7 nov: sin restricciones a lecciones concretas; no hizo falta cambiarlo para 4–9.
 
-Primera lección guiada HSK 1 «¿Agua o té?» implementada en cinco etapas con guardado, reanudación, ayudas progresivas y comprobación local. Audio de navegador separado de la conversación opcional con ElevenLabs. El cuaderno conserva evidencia, modalidad y fechas de repaso; frases personales separadas del progreso HSK. Configuración en `src/lessons.json` y `src/curriculum.json`.
+Producción: https://hsk-voice-coach.vercel.app (proyecto Vercel `hsk-voice-coach`, equipo `alonsos-projects-bad65756`). Las lecciones 4–9 llegan a producción solo tras commit, push y deploy. Vista local: http://127.0.0.1:4173/.
 
-Validado: 35 pruebas, TypeScript, build, recorrido de cinco etapas, persistencia al recargar y vista móvil. No se probó una conversación real con el micrófono del estudiante. La coincidencia de frases no evalúa pronunciación.
+## Próximos pasos
 
-ElevenLabs: nuevo prompt, `suggest_phrase`, español adicional y Patient/15 segundos publicados el 2026-11-01 en Main con el 100 % del tráfico (verificado en UI: Live 100%). Para resolver la validación se retiraron localhost:5199 y localhost:5173; el allowlist conserva solo hsk-voice-coach.vercel.app. No se añadió un origen local. Sigue pendiente probar una conversación real de voz con el estudiante.
+- Encargo de voz: ver la lista «Problemas de voz» en `docs/implementation-2026-11-07-lecciones-4-9.md`.
+- Lecciones 10–15 con el mismo patrón.
 
-Vista local: http://127.0.0.1:4173/. Proyecto Vercel existente: `hsk-voice-coach`, equipo `alonsos-projects-bad65756`; dominio de producción: https://hsk-voice-coach.vercel.app. Detalles y pendientes en `docs/implementation-2026-10-31.md`.
+## Estado anterior
+
+- 1 nov: curso del libro con lecciones 1–3, profesora integrada, deploy a producción (`efc38a4`, después en `main`).
+- 31 oct – 1 nov: lección guiada de bebidas «¿Agua o té?» (ahora «Práctica adicional», `src/lessons.json`).

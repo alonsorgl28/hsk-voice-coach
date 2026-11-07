@@ -13,10 +13,10 @@ const [l1, l2, l3] = availableLessons(course);
 const date = '2026-11-01T12:00:00.000Z', start = Date.parse(date), DAY = 86400000;
 const iso = ms => new Date(ms).toISOString();
 
-test('the path follows the book: three complete lessons first, the rest marked as future', () => {
+test('the path follows the book: nine complete lessons first, the rest marked as future', () => {
   assert.deepEqual(course.lessons.map(l => l.number), [...Array(15)].map((_, i) => i + 1));
-  assert.deepEqual(availableLessons(course).map(l => l.title.hanzi), ['你好', '谢谢你', '你叫什么名字']);
-  for (const l of course.lessons.slice(3)) { assert.equal(l.status, 'future'); assert.equal(l.steps, undefined); }
+  assert.deepEqual(availableLessons(course).map(l => l.title.hanzi), ['你好', '谢谢你', '你叫什么名字', '她是我的汉语老师', '她女儿今年二十岁', '我会说汉语', '今天几号', '我想喝茶', '你儿子在哪儿工作']);
+  for (const l of course.lessons.slice(9)) { assert.equal(l.status, 'future'); assert.equal(l.steps, undefined); }
   for (const l of availableLessons(course)) {
     assert.equal(l.steps[0].kind, 'teach', `${l.id} teaches before it asks`);
     assert.ok(l.book.pdf && l.book.printed, `${l.id} keeps its book reference`);
@@ -38,7 +38,7 @@ test('every communicative goal can be recalled without help, so a review can cle
 
 test('the first lesson is the greeting of the book, not «nǐ hǎo ma»', () => {
   assert.equal(phraseOf(l1, l1.steps[0].lines[0].phrase).pinyin, 'Nǐ hǎo!');
-  assert.ok(!availableLessons(course).flatMap(l => l.phrases).some(p => /吗/.test(p.hanzi) && /好/.test(p.hanzi)));
+  assert.ok(!availableLessons(course).flatMap(l => l.phrases).some(p => /你好吗|您好吗/.test(p.hanzi)));
 });
 
 test('book words are not blocked by the HSK 3.0 repertoire, and the difference is explicit', () => {
@@ -203,7 +203,7 @@ test('listening, viewing or repeating does not reach independent use', () => {
 test('lesson states: new, in progress, done and review due', () => {
   const none = lessonState(l1, [], {}, start);
   assert.equal(none.status, 'new');
-  assert.equal(lessonState(course.lessons[5], [], {}, start).status, 'future');
+  assert.equal(lessonState(course.lessons[9], [], {}, start).status, 'future');
   const pending = courseSession({...createCourseRun(l1, date, 'p'), index: 3}, l1, course);
   assert.equal(lessonState(l1, [pending], {}, start).status, 'in-progress');
   let run = createCourseRun(l1, date, 'd');

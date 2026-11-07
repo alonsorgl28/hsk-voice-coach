@@ -615,6 +615,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
 .cphrase-s .cphrase-py {font-size:15px}
 .cphrase-s .cphrase-es {font-size:12.5px}
 .cphrase-s .cphrase-zh {font-size:13px}
+/* Personal answers (age, country, today's date…): an example and what is accepted. */
+.cphrase-example {margin-top:6px;font-size:14px;color:var(--ink)}
+.cphrase-example b {font-weight:500}
+.cphrase-example i {font-style:normal;font-family:var(--zh);color:var(--soft)}
+.cphrase-hint {margin-top:4px;font-size:12px;line-height:1.45;color:var(--soft);max-width:52ch}
+.cphrase-s .cphrase-example {font-size:12.5px}
+.today-note {margin:0;font-size:14px;color:var(--soft)}
+.today-note b {color:var(--ink);font-weight:500}
 .play {flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
 .play:hover {border-color:var(--ink)}
 .play:disabled {opacity:.35;cursor:not-allowed}

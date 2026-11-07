@@ -1,5 +1,7 @@
 # Curso del libro para principiante — 1 de noviembre de 2026
 
+> Actualización 7 nov: las lecciones 4–9 ya están disponibles; ver `implementation-2026-11-07-lecciones-4-9.md`. Este documento describe el diseño original y las lecciones 1–3.
+
 ## Qué cambió
 
 - **Entrada principal:** la ruta de *HSK Standard Course 1* en el orden del libro (15 lecciones). Las lecciones 1–3 están completas; 4–15 aparecen «Por preparar», con título, objetivo según el índice y página, sin botón. La lección de bebidas pasa a «Práctica adicional».
